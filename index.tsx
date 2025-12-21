@@ -3,34 +3,19 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { AppProvider } from './context/AppContext';
 import './styles/global.css';
 
-const initializeApp = () => {
-  const rootElement = document.getElementById('root');
-  
-  if (!rootElement) {
-    console.error("Impossible de trouver l'élément racine #root");
-    return;
-  }
-
-  try {
-    const root = ReactDOM.createRoot(rootElement);
-    root.render(
-      <React.StrictMode>
-        <ErrorBoundary>
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <AppProvider>
           <App />
-        </ErrorBoundary>
-      </React.StrictMode>
-    );
-    console.log("🚀 Application SWAP SNCB démarrée");
-  } catch (error) {
-    console.error("Erreur lors du montage de l'application:", error);
-  }
-};
-
-// Démarrage
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeApp);
-} else {
-  initializeApp();
+        </AppProvider>
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
 }

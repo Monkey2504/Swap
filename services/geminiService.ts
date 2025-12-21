@@ -2,6 +2,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserPreference, Duty, SwapOffer } from "../types";
 
+export interface ExtractedTask {
+  time: string;
+  description: string;
+  location: string;
+}
+
+export interface ExtractedService {
+  code: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  tasks: ExtractedTask[];
+}
+
 export async function matchSwaps(
   userPreferences: UserPreference[],
   availableDuties: SwapOffer[]
@@ -24,7 +38,7 @@ export async function matchSwaps(
       TASK: 
       1. Calcule un matchScore (0-100) basé sur les likes/dislikes et les priorités.
       2. Fournis 3 raisons concrètes (matchReasons) basées sur le contenu (type, relation, destination) ou le planning.
-      3. Vérifie sommairement le respect du RGPS (si les horaires sont trop proches de services existants).
+      3. Vérifie sommairement le respect du RGPS.
 
       RETOURNE UNIQUEMENT JSON:
       {
@@ -51,7 +65,7 @@ export async function matchSwaps(
                   matchScore: { type: Type.NUMBER },
                   matchReasons: { type: Type.ARRAY, items: { type: Type.STRING } }
                 },
-                propertyOrdering: ["id", "matchScore", "matchReasons"]
+                required: ["id", "matchScore", "matchReasons"]
               }
             }
           }
@@ -76,16 +90,19 @@ export async function matchSwaps(
 }
 
 /**
- * Parses a roster document (Image or PDF) to extract duties.
+ * Parses a roster document (Image or PDF) to extract detailed duties and tasks.
  */
-export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<Partial<Duty>[]> {
+export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<ExtractedService[]> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { text: "Tu es un assistant spécialisé SNCB. Analyse ce document de roster (planning). Extrais tous les services prévus : code du service (4 chiffres), heure de départ, heure d'arrivée, et les gares de passage ou destinations. Retourne une liste propre en JSON." },
+          { text: `Tu es un assistant spécialisé SNCB. Analyse ce document de roster (Korte Prestaties / Prestations Courtes). 
+          Extrais CHAQUE service présent. Un service commence par une ligne comme "100 R1 FL-A 16 3:15 11:50 8h35".
+          Pour chaque service, liste les tâches principales (Sign-on, TAXI, Train n°, Travel to, Bcb, etc.) avec leurs horaires et lieux.
+          Fais attention à bien capturer le code du service (ex: 100 R1) et les heures de début/fin.` },
           { inlineData: { mimeType: mimeType, data: base64Data } }
         ]
       },
@@ -94,17 +111,29 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            duties: {
+            services: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  code: { type: Type.STRING },
-                  startTime: { type: Type.STRING },
-                  endTime: { type: Type.STRING },
-                  destinations: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  code: { type: Type.STRING, description: "Code du service, ex: 100 R1" },
+                  startTime: { type: Type.STRING, description: "Heure de début totale" },
+                  endTime: { type: Type.STRING, description: "Heure de fin totale" },
+                  duration: { type: Type.STRING, description: "Durée totale, ex: 8h35" },
+                  tasks: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        time: { type: Type.STRING, description: "Heure de la tâche" },
+                        description: { type: Type.STRING, description: "Nom de la tâche ou numéro de train" },
+                        location: { type: Type.STRING, description: "Lieu ou gare" }
+                      },
+                      required: ["time", "description", "location"]
+                    }
+                  }
                 },
-                propertyOrdering: ["code", "startTime", "endTime", "destinations"]
+                required: ["code", "startTime", "endTime", "tasks"]
               }
             }
           }
@@ -112,8 +141,8 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
       }
     });
 
-    const result = JSON.parse(response.text || '{"duties": []}');
-    return result.duties || [];
+    const result = JSON.parse(response.text || '{"services": []}');
+    return result.services || [];
   } catch (error) {
     console.error("Erreur OCR/Document IA:", error);
     return [];
