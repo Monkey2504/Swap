@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { UserPreference, Duty, SwapOffer } from "../types";
 
 export interface ExtractedTask {
@@ -12,9 +12,19 @@ export interface ExtractedService {
   code: string;
   startTime: string;
   endTime: string;
-  duration: string;
+  duration?: string;
   tasks: ExtractedTask[];
 }
+
+const SWAP_SYSTEM_INSTRUCTION = `
+You are a senior rail operations coordinator for SNCB. Your role is to analyze and match train crew (ACT) service swaps.
+BUSINESS RULES:
+- IC (InterCity), Omnibus/L, P (Rush hour), S (Suburban).
+- AM96, M6, M7, Desiro are rolling stock types.
+- RGPS compliance is mandatory (Rest time, service duration).
+- User preferences use LIKE/DISLIKE/NEUTRAL and priority levels.
+- Output MUST be strictly JSON.
+`;
 
 export async function matchSwaps(
   userPreferences: UserPreference[],
@@ -22,36 +32,13 @@ export async function matchSwaps(
 ): Promise<SwapOffer[]> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `
-      Tu es un expert en logistique ferroviaire SNCB pour les Accompagnateurs de Train (ACT).
-      
-      NOMENCLATURE SNCB:
-      - IC: InterCity (rapide)
-      - Omnibus/L: Trains de desserte locale
-      - M7/M6: Voitures modernes à double étage
-      - AM96: Automotrices confortables
-      - RGPS: Règlement Général des Prestations de Service (temps de repos minimum 11h, durée max 10h).
-
-      PRÉFÉRENCES UTILISATEUR: ${JSON.stringify(userPreferences)}
-      OFFRES DISPONIBLES: ${JSON.stringify(availableDuties)}
-      
-      TASK: 
-      1. Calcule un matchScore (0-100) basé sur les likes/dislikes et les priorités.
-      2. Fournis 3 raisons concrètes (matchReasons) basées sur le contenu (type, relation, destination) ou le planning.
-      3. Vérifie sommairement le respect du RGPS.
-
-      RETOURNE UNIQUEMENT JSON:
-      {
-        "matches": [
-          { "id": "string", "matchScore": number, "matchReasons": ["string"] }
-        ]
-      }
-    `;
-
-    const response = await ai.models.generateContent({
+    const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: `Match these preferences with the available offers: 
+      PREFS: ${JSON.stringify(userPreferences)}
+      OFFERS: ${JSON.stringify(availableDuties)}`,
       config: {
+        systemInstruction: SWAP_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -68,7 +55,8 @@ export async function matchSwaps(
                 required: ["id", "matchScore", "matchReasons"]
               }
             }
-          }
+          },
+          required: ["matches"]
         }
       }
     });
@@ -79,34 +67,29 @@ export async function matchSwaps(
       const aiMatch = result.matches?.find((m: any) => m.id === duty.id);
       return {
         ...duty,
-        matchScore: aiMatch?.matchScore || Math.floor(Math.random() * 40),
-        matchReasons: aiMatch?.matchReasons || ["Analyse automatique en cours"]
+        matchScore: aiMatch?.matchScore || 0,
+        matchReasons: aiMatch?.matchReasons || ["Analyse en cours"]
       };
     }).sort((a, b) => b.matchScore - a.matchScore);
   } catch (error) {
-    console.error("Erreur Gemini Matching:", error);
+    console.error("[CRITICAL] Gemini Match Error:", error);
     return availableDuties;
   }
 }
 
-/**
- * Parses a roster document (Image or PDF) to extract detailed duties and tasks.
- */
 export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<ExtractedService[]> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
+    const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { text: `Tu es un assistant spécialisé SNCB. Analyse ce document de roster (Korte Prestaties / Prestations Courtes). 
-          Extrais CHAQUE service présent. Un service commence par une ligne comme "100 R1 FL-A 16 3:15 11:50 8h35".
-          Pour chaque service, liste les tâches principales (Sign-on, TAXI, Train n°, Travel to, Bcb, etc.) avec leurs horaires et lieux.
-          Fais attention à bien capturer le code du service (ex: 100 R1) et les heures de début/fin.` },
-          { inlineData: { mimeType: mimeType, data: base64Data } }
+          { inlineData: { mimeType, data: base64Data } },
+          { text: "Extract ALL duties from this SNCB roster. Use telegraphic codes for locations if present (e.g. FBMZ, FNR, FLG). Be exhaustive and extract every single service code found on the page." }
         ]
       },
       config: {
+        systemInstruction: "You are a professional SNCB roster parser. You recognize telegraphic station codes (3-5 letters like FBMZ for Brussels-Midi, FNR for Namur, etc.). Extract services with their start/end times and all station stops listed.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -116,18 +99,18 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  code: { type: Type.STRING, description: "Code du service, ex: 100 R1" },
-                  startTime: { type: Type.STRING, description: "Heure de début totale" },
-                  endTime: { type: Type.STRING, description: "Heure de fin totale" },
-                  duration: { type: Type.STRING, description: "Durée totale, ex: 8h35" },
+                  code: { type: Type.STRING },
+                  startTime: { type: Type.STRING },
+                  endTime: { type: Type.STRING },
+                  duration: { type: Type.STRING },
                   tasks: {
                     type: Type.ARRAY,
                     items: {
                       type: Type.OBJECT,
                       properties: {
-                        time: { type: Type.STRING, description: "Heure de la tâche" },
-                        description: { type: Type.STRING, description: "Nom de la tâche ou numéro de train" },
-                        location: { type: Type.STRING, description: "Lieu ou gare" }
+                        time: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        location: { type: Type.STRING }
                       },
                       required: ["time", "description", "location"]
                     }
@@ -136,15 +119,15 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
                 required: ["code", "startTime", "endTime", "tasks"]
               }
             }
-          }
+          },
+          required: ["services"]
         }
       }
     });
 
-    const result = JSON.parse(response.text || '{"services": []}');
-    return result.services || [];
+    return JSON.parse(response.text || '{"services": []}').services || [];
   } catch (error) {
-    console.error("Erreur OCR/Document IA:", error);
+    console.error("[CRITICAL] OCR Failure:", error);
     return [];
   }
 }

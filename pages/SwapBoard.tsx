@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile, UserPreference, SwapOffer } from '../types';
 import { matchSwaps } from '../services/geminiService';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface SwapBoardProps {
   user: UserProfile;
@@ -9,228 +10,159 @@ interface SwapBoardProps {
 }
 
 const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
-  const [activeTab, setActiveTab] = useState<'suggested' | 'requested'>('suggested');
   const [swaps, setSwaps] = useState<SwapOffer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  
-  // New Request Form State
-  const [newReq, setNewReq] = useState({ date: '', type: 'IC', notes: '' });
+  const [filter, setFilter] = useState<'all' | 'urgent'>('all');
+
+  const fetchAndMatch = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('swap_offers')
+        .select('*')
+        .eq('depot', user.depot)
+        .neq('user_id', user.id)
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      const remoteOffers: SwapOffer[] = (data || []).map(item => ({
+        id: item.id,
+        user: { 
+          firstName: item.user_name.split(' ')[0], 
+          lastName: item.user_name.split(' ')[1], 
+          sncbId: item.user_sncb_id 
+        },
+        offeredDuty: item.duty_data,
+        matchScore: 0,
+        matchReasons: [],
+        type: item.is_urgent ? 'manual_request' : 'suggested'
+      }));
+
+      const matched = await matchSwaps(preferences, remoteOffers);
+      setSwaps(matched);
+    } catch (err) {
+      console.error("Match error", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user.id, user.depot, preferences]);
 
   useEffect(() => {
-    const fetchAndMatch = async () => {
-      setLoading(true);
-      const mockPool: SwapOffer[] = [
-        {
-          id: 's1',
-          user: { firstName: 'Marc', lastName: 'L.', sncbId: '785002', series: '702' },
-          offeredDuty: {
-            id: 'm1', code: '2010', type: 'IC', relations: ['24'], compositions: ['M7'],
-            destinations: ['Luxembourg'], startTime: '07:30', endTime: '16:00', date: '2024-05-20'
-          },
-          matchScore: 0,
-          matchReasons: [],
-          type: 'suggested'
-        },
-        {
-          id: 's2',
-          user: { firstName: 'Sophie', lastName: 'V.', sncbId: '792001', series: '710' },
-          offeredDuty: {
-            id: 'm2', code: '4005', type: 'Omnibus', relations: ['40'], compositions: ['AM96'],
-            destinations: ['Manage'], startTime: '05:00', endTime: '12:30', date: '2024-05-21'
-          },
-          matchScore: 0,
-          matchReasons: [],
-          type: 'suggested'
-        }
-      ];
-
-      const matched = await matchSwaps(preferences, mockPool);
-      setSwaps(matched);
-      setLoading(false);
-    };
-
     fetchAndMatch();
-  }, [preferences]);
 
-  const handleCreateRequest = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert("Votre demande a été publiée ! L'IA cherche maintenant des correspondances.");
-    setShowModal(false);
+    // REALTIME: Écouter les changements dans la base pour mettre à jour instantanément
+    if (isSupabaseConfigured && supabase) {
+      const channel = supabase
+        .channel('public:swap_offers')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'swap_offers' }, () => {
+          fetchAndMatch();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [fetchAndMatch]);
+
+  const handleContact = (swap: SwapOffer) => {
+    const subject = encodeURIComponent(`SWAP ACT : Intérêt pour votre service ${swap.offeredDuty.code}`);
+    const body = encodeURIComponent(`Bonjour ${swap.user.firstName},\n\nJ'ai vu ton offre de service ${swap.offeredDuty.code} du ${swap.offeredDuty.date} sur l'appli Swap.\n\nEs-tu disponible pour en discuter ?\n\nBien à toi,\n${user.firstName} ${user.lastName}`);
+    window.location.href = `mailto:${swap.user.sncbId}@sncb.be?subject=${subject}&body=${body}`;
   };
 
+  const displayedSwaps = filter === 'urgent' ? swaps.filter(s => s.type === 'manual_request') : swaps;
+
   return (
-    <div className="max-w-6xl mx-auto p-6 pb-24 animate-fadeIn">
-      <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <div className="max-w-7xl mx-auto p-6 pb-24 animate-fadeIn">
+      <header className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black text-blue-900 tracking-tight">Espace Echanges</h2>
-          <p className="text-gray-500 mt-1">Géré par l'IA SNCB • Dépôt <span className="text-blue-600 font-bold">{user.depot}</span></p>
+          <h2 className="text-5xl font-black text-sncb-blue italic tracking-tighter">Bourse aux Services</h2>
+          <div className="flex items-center space-x-2 mt-2">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Live : Dépôt {user.depot}</p>
+          </div>
         </div>
-        <div className="flex bg-white rounded-2xl shadow-sm border p-1 w-full md:w-auto">
-          <button
-            onClick={() => setActiveTab('suggested')}
-            className={`flex-grow md:flex-initial px-8 py-3 rounded-xl font-bold text-sm transition ${activeTab === 'suggested' ? 'bg-blue-900 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
+
+        <div className="flex bg-white p-1 rounded-2xl shadow-inner border">
+          <button 
+            onClick={() => setFilter('all')}
+            className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${filter === 'all' ? 'bg-sncb-blue text-white shadow-md' : 'text-gray-400'}`}
           >
-            Suggestions IA
+            Tous les services
           </button>
-          <button
-            onClick={() => setActiveTab('requested')}
-            className={`flex-grow md:flex-initial px-8 py-3 rounded-xl font-bold text-sm transition ${activeTab === 'requested' ? 'bg-blue-900 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50'}`}
+          <button 
+            onClick={() => setFilter('urgent')}
+            className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${filter === 'urgent' ? 'bg-red-600 text-white shadow-md' : 'text-gray-400'}`}
           >
-            Mes Demandes
+            🔥 Demandes Urgentes
           </button>
         </div>
       </header>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-24">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-blue-100 rounded-full"></div>
-            <div className="w-16 h-16 border-4 border-blue-900 border-t-yellow-400 rounded-full animate-spin absolute top-0 left-0"></div>
-          </div>
-          <p className="mt-6 text-blue-900 font-bold text-lg animate-pulse">L'IA synchronise les Rosters...</p>
+        <div className="flex flex-col items-center justify-center py-32 space-y-6">
+          <div className="w-16 h-16 border-4 border-sncb-blue border-t-sncb-yellow rounded-full animate-spin"></div>
+          <p className="font-black text-sncb-blue uppercase text-xs tracking-widest animate-pulse">Consultation du pool SNCB...</p>
+        </div>
+      ) : displayedSwaps.length === 0 ? (
+        <div className="bg-white rounded-[50px] p-24 text-center border-4 border-dashed border-gray-100 shadow-sm">
+          <div className="text-6xl mb-6 opacity-20">🚉</div>
+          <h3 className="text-2xl font-black text-gray-300 uppercase italic">Voie Libre</h3>
+          <p className="text-gray-400 mt-2 font-medium">Aucun échange disponible pour le moment dans votre secteur.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {activeTab === 'suggested' && swaps.map((swap) => (
-            <div key={swap.id} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col group hover:-translate-y-1">
-              <div className="bg-blue-900 p-5 text-white relative">
-                 <div className="absolute top-4 right-4 bg-yellow-400 text-blue-900 text-[10px] font-black px-2 py-1 rounded-full shadow-lg uppercase">
-                    {swap.matchScore}% Match
-                 </div>
-                 <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">Service {swap.offeredDuty.type}</p>
-                 <h3 className="text-3xl font-black">{swap.offeredDuty.code}</h3>
-                 <div className="flex items-center text-xs text-blue-100 mt-2">
-                   <span className="bg-blue-800 px-2 py-1 rounded mr-2">Comp: {swap.offeredDuty.compositions[0]}</span>
-                   <span className="truncate">{swap.offeredDuty.destinations.join(' ➔ ')}</span>
-                 </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          {displayedSwaps.map(swap => (
+            <div key={swap.id} className={`bg-white rounded-[40px] border-4 ${swap.type === 'manual_request' ? 'border-red-100 shadow-red-50' : 'border-gray-50'} overflow-hidden shadow-2xl hover:shadow-sncb-blue/10 transition-all duration-500 hover:-translate-y-2 group flex flex-col`}>
+              <div className={`${swap.type === 'manual_request' ? 'bg-red-600' : 'bg-sncb-blue'} p-8 text-white relative`}>
+                <div className="absolute top-4 right-4 bg-sncb-yellow text-sncb-blue text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
+                  {swap.matchScore}% MATCH
+                </div>
+                <p className="text-[10px] font-black opacity-60 uppercase mb-1 tracking-widest">
+                  {swap.type === 'manual_request' ? '📍 Demande Ponctuelle' : '🔄 Suggestion IA'}
+                </p>
+                <h3 className="text-4xl font-black italic">{swap.offeredDuty.code}</h3>
+                <p className="text-xs font-bold mt-1 opacity-80">{swap.offeredDuty.date}</p>
               </div>
 
-              <div className="p-6 flex-grow space-y-6">
-                <div className="flex justify-between items-center bg-gray-50 rounded-2xl p-4">
-                   <div className="text-center">
-                      <p className="text-[10px] text-gray-400 uppercase font-black mb-1">Départ</p>
-                      <p className="font-black text-blue-900 text-xl">{swap.offeredDuty.startTime}</p>
-                   </div>
-                   <div className="flex-grow mx-4 relative flex items-center justify-center">
-                      <div className="w-full h-[2px] bg-gray-200"></div>
-                      <div className="absolute bg-white px-2 text-lg">🚆</div>
-                   </div>
-                   <div className="text-center">
-                      <p className="text-[10px] text-gray-400 uppercase font-black mb-1">Arrivée</p>
-                      <p className="font-black text-blue-900 text-xl">{swap.offeredDuty.endTime}</p>
-                   </div>
-                </div>
-
-                <div className="space-y-2">
-                   <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Analyse Gemini Intelligence</p>
-                   {swap.matchReasons.map((reason, idx) => (
-                    <div key={idx} className="flex items-start text-xs text-gray-600 bg-blue-50/50 p-2 rounded-lg border border-blue-50">
-                       <span className="mr-2">🔹</span> {reason}
+              <div className="p-8 flex-grow space-y-8">
+                <div className="flex items-center justify-between bg-slate-50 p-5 rounded-3xl border border-gray-100">
+                  <div className="text-center">
+                    <p className="text-[9px] font-black text-gray-400 uppercase">Départ</p>
+                    <p className="text-xl font-black text-sncb-blue">{swap.offeredDuty.startTime}</p>
+                  </div>
+                  <div className="flex-grow flex items-center justify-center px-4">
+                    <div className="h-px bg-gray-200 w-full relative">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-lg">🚆</div>
                     </div>
-                   ))}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[9px] font-black text-gray-400 uppercase">Arrivée</p>
+                    <p className="text-xl font-black text-sncb-blue">{swap.offeredDuty.endTime}</p>
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-3 pt-2 border-t border-gray-100">
-                   <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center font-black text-blue-900 text-sm shadow-inner">
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black text-sncb-blue uppercase tracking-widest flex items-center">
+                    <span className="mr-2">🧠</span> Pourquoi ce match ?
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {swap.matchReasons.map((reason, i) => (
+                      <span key={i} className="text-[10px] font-bold bg-blue-50 text-sncb-blue px-3 py-1.5 rounded-xl border border-blue-100 italic">
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-sncb-yellow rounded-2xl flex items-center justify-center font-black text-sncb-blue shadow-inner rotate-3">
                       {swap.user.firstName?.[0]}
-                   </div>
-                   <div>
-                      <p className="text-sm font-bold text-gray-900">{swap.user.firstName} {swap.user.lastName}</p>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Série {swap.user.series} • Pos {swap.user.position}</p>
-                   </div>
-                   <button className="ml-auto text-blue-600 hover:bg-blue-50 p-2 rounded-full transition">
-                     💬
-                   </button>
-                </div>
-              </div>
-
-              <div className="p-6 pt-0">
-                 <button className="w-full bg-blue-900 text-white font-bold py-4 rounded-2xl hover:bg-yellow-400 hover:text-blue-900 transition-all shadow-md active:scale-95 flex items-center justify-center space-x-2">
-                    <span>Proposer mon service</span>
-                    <span className="text-lg">🔄</span>
-                 </button>
-              </div>
-            </div>
-          ))}
-
-          {activeTab === 'requested' && (
-             <div className="col-span-full bg-blue-50/30 rounded-3xl p-12 text-center border-2 border-dashed border-blue-200">
-                <div className="text-6xl mb-6">📝</div>
-                <h3 className="text-2xl font-bold text-blue-900">Aucune demande en cours</h3>
-                <p className="text-gray-500 mt-2 max-w-md mx-auto">Publiez une demande pour un jour spécifique si vous ne trouvez pas votre bonheur dans les suggestions.</p>
-                <button 
-                  onClick={() => setShowModal(true)}
-                  className="mt-8 bg-blue-900 text-white px-8 py-3 rounded-xl font-bold shadow-xl"
-                >
-                  + Créer ma première demande
-                </button>
-             </div>
-          )}
-
-          {/* New Request Card */}
-          {activeTab === 'suggested' && (
-            <div 
-              onClick={() => setShowModal(true)}
-              className="border-4 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center p-10 text-center bg-gray-50 hover:bg-white hover:border-blue-400 hover:shadow-xl transition-all cursor-pointer group"
-            >
-               <div className="w-20 h-20 bg-blue-100 rounded-3xl flex items-center justify-center text-4xl mb-6 text-blue-600 group-hover:scale-110 transition-transform shadow-inner">+</div>
-               <h3 className="text-xl font-black text-gray-800 tracking-tight">Demande Spécifique</h3>
-               <p className="text-sm text-gray-400 mt-3 font-medium">L'IA cherchera un match pour un besoin ponctuel.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Modal for New Request */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-blue-900/40 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
-            <div className="bg-blue-900 p-6 text-white flex justify-between items-center">
-              <h3 className="text-xl font-black">Nouvelle Demande de Swap</h3>
-              <button onClick={() => setShowModal(false)} className="text-2xl hover:scale-110 transition">✕</button>
-            </div>
-            <form onSubmit={handleCreateRequest} className="p-8 space-y-6">
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Date du service à échanger</label>
-                <input 
-                  type="date" 
-                  className="w-full p-4 rounded-xl border-gray-200 border focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={newReq.date}
-                  onChange={e => setNewReq({...newReq, date: e.target.value})}
-                  required 
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Type de service souhaité</label>
-                <select 
-                  className="w-full p-4 rounded-xl border-gray-200 border focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={newReq.type}
-                  onChange={e => setNewReq({...newReq, type: e.target.value})}
-                >
-                  <option>IC (InterCity)</option>
-                  <option>Omnibus / L</option>
-                  <option>Peu importe</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Notes pour les collègues</label>
-                <textarea 
-                  className="w-full p-4 rounded-xl border-gray-200 border focus:ring-2 focus:ring-blue-500 outline-none h-32"
-                  placeholder="Ex: Besoin d'échanger pour rdv médical le matin..."
-                  value={newReq.notes}
-                  onChange={e => setNewReq({...newReq, notes: e.target.value})}
-                ></textarea>
-              </div>
-              <button className="w-full bg-yellow-400 text-blue-900 font-black py-4 rounded-2xl shadow-lg hover:bg-yellow-300 transition-all active:scale-95">
-                Publier ma demande
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default SwapBoard;
+                    
