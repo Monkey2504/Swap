@@ -1,0 +1,7 @@
+{
+  "name": "Appli Swap SNCB",
+  "description": "Une application métier intelligente pour faciliter les échanges (SWAP) de services entre accompagnateurs de train (ACT) à la SNCB, intégrant l'IA pour le matching et le respect des contraintes RGPS.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
