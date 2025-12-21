@@ -1,4 +1,5 @@
 
+
 export enum PreferenceLevel {
   LIKE = 'LIKE',
   NEUTRAL = 'NEUTRAL',
@@ -7,23 +8,29 @@ export enum PreferenceLevel {
 
 export interface UserPreference {
   id: string;
-  category: 'content' | 'planning';
+  category: 'content' | 'planning' | 'location';
   label: string;
   value: string;
   level: PreferenceLevel;
   priority: number;
+  description?: string;
 }
 
 export interface Duty {
   id: string;
   code: string; // e.g., "S123"
-  type: 'Omnibus' | 'IC' | 'L' | 'P';
+  type: 'Omnibus' | 'IC' | 'L' | 'P' | 'S';
   relations: string[]; // e.g., ["24", "38"]
   compositions: string[]; // e.g., ["AM", "M7"]
   destinations: string[];
   startTime: string;
   endTime: string;
   date: string;
+  dayOfWeek?: string;
+  duration?: number;
+  isNight?: boolean;
+  isWeekend?: boolean;
+  depot?: string;
 }
 
 export interface UserProfile {

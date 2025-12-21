@@ -1,14 +1,13 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { UserPreference, Duty, SwapOffer, PreferenceLevel } from "../types";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { UserPreference, Duty, SwapOffer } from "../types";
 
 export async function matchSwaps(
   userPreferences: UserPreference[],
   availableDuties: SwapOffer[]
 ): Promise<SwapOffer[]> {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       Tu es un expert en logistique ferroviaire SNCB pour les Accompagnateurs de Train (ACT).
       
@@ -40,13 +39,30 @@ export async function matchSwaps(
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            matches: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  matchScore: { type: Type.NUMBER },
+                  matchReasons: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                propertyOrdering: ["id", "matchScore", "matchReasons"]
+              }
+            }
+          }
+        }
       }
     });
 
     const result = JSON.parse(response.text || '{"matches": []}');
     
     return availableDuties.map(duty => {
-      const aiMatch = result.matches.find((m: any) => m.id === duty.id);
+      const aiMatch = result.matches?.find((m: any) => m.id === duty.id);
       return {
         ...duty,
         matchScore: aiMatch?.matchScore || Math.floor(Math.random() * 40),
@@ -59,14 +75,20 @@ export async function matchSwaps(
   }
 }
 
-export async function parseRosterImage(base64Image: string): Promise<Partial<Duty>[]> {
+/**
+ * Parses a roster document (Image or PDF) to extract duties.
+ */
+export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<Partial<Duty>[]> {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [
-        { text: "Analyse cette capture d'écran de roster SNCB. Extrais les services (code ex: 1502, horaires, destinations). Format JSON." },
-        { inlineData: { mimeType: "image/jpeg", data: base64Image } }
-      ],
+      contents: {
+        parts: [
+          { text: "Tu es un assistant spécialisé SNCB. Analyse ce document de roster (planning). Extrais tous les services prévus : code du service (4 chiffres), heure de départ, heure d'arrivée, et les gares de passage ou destinations. Retourne une liste propre en JSON." },
+          { inlineData: { mimeType: mimeType, data: base64Data } }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -81,7 +103,8 @@ export async function parseRosterImage(base64Image: string): Promise<Partial<Dut
                   startTime: { type: Type.STRING },
                   endTime: { type: Type.STRING },
                   destinations: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
+                },
+                propertyOrdering: ["code", "startTime", "endTime", "destinations"]
               }
             }
           }
@@ -90,9 +113,9 @@ export async function parseRosterImage(base64Image: string): Promise<Partial<Dut
     });
 
     const result = JSON.parse(response.text || '{"duties": []}');
-    return result.duties;
+    return result.duties || [];
   } catch (error) {
-    console.error("Erreur OCR IA:", error);
+    console.error("Erreur OCR/Document IA:", error);
     return [];
   }
 }
