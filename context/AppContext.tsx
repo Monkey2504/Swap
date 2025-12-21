@@ -26,6 +26,8 @@ interface AppContextType {
   logout: () => Promise<void>;
   error: string | null;
   setError: (msg: string | null) => void;
+  successMessage: string | null;
+  setSuccessMessage: (msg: string | null) => void;
   isSaving: boolean;
   rgpdConsent: boolean;
   setRgpdConsent: (v: boolean) => void;
@@ -39,13 +41,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [preferences, setPreferences] = useState<UserPreference[]>(INITIAL_PREFERENCES);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [rgpdConsent, setRgpdConsent] = useState(() => localStorage.getItem('sncb_rgpd_consent') === 'true');
   
-  const timeoutRef = useRef<number | null>(null);
-  const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // Étendu à 1h pour le test MVP
-
   const logAction = useCallback((action: AuditAction, details: any, severity: AuditEntry['severity'] = 'INFO') => {
     const incidentId = Math.random().toString(36).substring(2, 15).toUpperCase();
     const entry = {
@@ -69,27 +69,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUser(prev => prev ? { ...prev, ...updates } : null);
   }, []);
 
-  // MVP: Publier un service dans la table globale des échanges
+  // Publier un service (Supporte maintenant le mode démo)
   const publishDutyForSwap = async (dutyId: string) => {
-    if (!user || !isSupabaseConfigured || !supabase) return;
+    if (!user) return;
     const duty = user.currentDuties.find(d => d.id === dutyId);
     if (!duty) return;
 
     setIsSaving(true);
     try {
-      const { error: dbError } = await supabase.from('swap_offers').insert({
-        user_id: user.id,
-        user_sncb_id: user.sncbId,
-        user_name: `${user.firstName} ${user.lastName}`,
-        depot: user.depot,
-        duty_data: duty,
-        status: 'active'
-      });
-      if (dbError) throw dbError;
+      if (isSupabaseConfigured && supabase) {
+        const { error: dbError } = await supabase.from('swap_offers').insert({
+          user_id: user.id,
+          user_sncb_id: user.sncbId,
+          user_name: `${user.firstName} ${user.lastName}`,
+          depot: user.depot,
+          duty_data: duty,
+          status: 'active'
+        });
+        if (dbError) throw dbError;
+      } else {
+        // Simulation mode démo
+        await new Promise(resolve => setTimeout(resolve, 800));
+        console.log("Mode Démo: Service publié localement", duty);
+      }
+      
       logAction('SWAP_PUBLISH', { dutyCode: duty.code });
-      setError("Service publié avec succès dans le pool d'échanges !");
+      setSuccessMessage(`Service ${duty.code} publié avec succès dans la bourse aux échanges !`);
     } catch (err: any) {
-      setError("Erreur lors de la publication de l'échange.");
+      setError("Erreur lors de la publication de l'échange. Vérifiez votre connexion.");
     } finally {
       setIsSaving(false);
     }
@@ -119,11 +126,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem('sncb_rgpd_consent', rgpdConsent.toString());
   }, [rgpdConsent]);
 
+  // Clear success message after 5 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   return (
     <AppContext.Provider value={{ 
       user, setUser, preferences, setPreferences, 
       updateUserProfile, saveProfileToDB, publishDutyForSwap, logout,
-      error, setError, isSaving, rgpdConsent, setRgpdConsent,
+      error, setError, successMessage, setSuccessMessage, isSaving, rgpdConsent, setRgpdConsent,
       logAction, sessionExpired 
     }}>
       {children}

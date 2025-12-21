@@ -11,7 +11,7 @@ import { Session } from '@supabase/supabase-js';
 type AppPage = 'login' | 'profile' | 'preferences' | 'swaps';
 
 const App: React.FC = () => {
-  const { user, preferences, setPreferences, setUser, logout, error, setError, logAction } = useApp();
+  const { user, preferences, setPreferences, setUser, logout, error, setError, successMessage, setSuccessMessage, logAction } = useApp();
   const [currentPage, setCurrentPage] = useState<AppPage>('login');
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +35,6 @@ const App: React.FC = () => {
   }, [setUser, logAction]);
 
   const handleLocalLogin = () => {
-    if (process.env.NODE_ENV === 'production') return;
     const demoSession = { user: { id: 'local-demo', email: 'demo@sncb.be' } } as Session;
     setSession(demoSession);
     handleLoginSuccess(demoSession.user);
@@ -75,10 +74,19 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
+      {/* Barre d'erreur */}
       {error && (
         <div className="bg-red-600 text-white py-3 px-6 text-xs font-black flex justify-between items-center animate-slide-up sticky top-0 z-[100] shadow-xl uppercase tracking-widest">
           <p className="flex items-center"><span className="text-lg mr-2">⚠️</span> {error}</p>
           <button onClick={() => setError(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition">✕</button>
+        </div>
+      )}
+
+      {/* Barre de succès */}
+      {successMessage && (
+        <div className="bg-green-500 text-white py-4 px-6 text-[10px] font-black flex justify-between items-center animate-slide-up sticky top-0 z-[100] shadow-2xl uppercase tracking-[0.2em]">
+          <p className="flex items-center"><span className="text-xl mr-3">✅</span> {successMessage}</p>
+          <button onClick={() => setSuccessMessage(null)} className="bg-black/10 hover:bg-black/20 p-2 rounded-full transition">✕</button>
         </div>
       )}
 

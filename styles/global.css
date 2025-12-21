@@ -1,22 +1,66 @@
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(30px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 .animate-fadeIn {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #f8fafc;
 }
 
-/* Custom transitions */
-.transition-all {
-  transition-property: all;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+/* Style Ticket de Train */
+.ticket-edge {
+  position: relative;
+  background-image: radial-gradient(circle at 0 50%, transparent 12px, white 13px),
+                    radial-gradient(circle at 100% 50%, transparent 12px, white 13px);
+  background-size: 100% 100%;
+}
+
+.ticket-divider {
+  border-top: 2px dashed #e2e8f0;
+  position: relative;
+}
+
+.ticket-divider::before, .ticket-divider::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  background: #f8fafc;
+  border-radius: 50%;
+}
+
+.ticket-divider::before { left: -24px; box-shadow: inset -2px 0 3px rgba(0,0,0,0.05); }
+.ticket-divider::after { right: -24px; box-shadow: inset 2px 0 3px rgba(0,0,0,0.05); }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
