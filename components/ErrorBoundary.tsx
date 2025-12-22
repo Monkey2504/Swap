@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -15,7 +15,8 @@ interface State {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-export class ErrorBoundary extends Component<Props, State> {
+// Fix: Explicitly extending React.Component ensures setState, props, and other lifecycle methods are correctly inherited from the React namespace
+export class ErrorBoundary extends React.Component<Props, State> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
   public state: State = {
@@ -60,6 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true };
   }
 
+  // Fix: setState is correctly inherited from the React.Component base class
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const incidentId = this.generateIncidentId();
     const sanitizedMessage = this.sanitizeErrorMessage(error.message);
@@ -93,6 +95,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  // Fix: setState is a built-in method provided by React.Component inheritance
   private handleManualRetry = () => {
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
@@ -166,6 +169,7 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Fix: Access props correctly as inherited from React.Component
     return this.props.children;
   }
 }

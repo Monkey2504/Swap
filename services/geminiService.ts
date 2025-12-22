@@ -32,14 +32,17 @@ export async function matchSwaps(
 ): Promise<SwapOffer[]> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Fix: Use gemini-3-pro-preview for complex matching reasoning
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: `Match these preferences with the available offers: 
       PREFS: ${JSON.stringify(userPreferences)}
       OFFERS: ${JSON.stringify(availableDuties)}`,
       config: {
         systemInstruction: SWAP_SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
+        // Fix: Provide thinking budget for the pro model to ensure deep reasoning on matching criteria
+        thinkingConfig: { thinkingBudget: 32768 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -61,6 +64,7 @@ export async function matchSwaps(
       }
     });
 
+    // Fix: Access response.text property directly as defined in the SDK
     const result = JSON.parse(response.text || '{"matches": []}');
     
     return availableDuties.map(duty => {
@@ -80,8 +84,9 @@ export async function matchSwaps(
 export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<ExtractedService[]> {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Fix: Use gemini-3-pro-preview for structured data extraction from images/PDFs
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Data } },
@@ -91,6 +96,8 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
       config: {
         systemInstruction: "You are a professional SNCB roster parser. You recognize telegraphic station codes (3-5 letters like FBMZ for Brussels-Midi, FNR for Namur, etc.). Extract services with their start/end times and all station stops listed.",
         responseMimeType: "application/json",
+        // Fix: Use high thinking budget to improve accuracy of coordinate extraction and text recognition
+        thinkingConfig: { thinkingBudget: 32768 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -125,6 +132,7 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
       }
     });
 
+    // Fix: Access response.text property directly
     return JSON.parse(response.text || '{"services": []}').services || [];
   } catch (error) {
     console.error("[CRITICAL] OCR Failure:", error);

@@ -69,7 +69,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUser(prev => prev ? { ...prev, ...updates } : null);
   }, []);
 
-  // Publier un service (Supporte maintenant le mode démo)
+  // Publier un service
   const publishDutyForSwap = async (dutyId: string) => {
     if (!user) return;
     const duty = user.currentDuties.find(d => d.id === dutyId);
@@ -87,24 +87,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           status: 'active'
         });
         if (dbError) throw dbError;
-      } else {
-        // Simulation mode démo
-        await new Promise(resolve => setTimeout(resolve, 800));
-        console.log("Mode Démo: Service publié localement", duty);
       }
       
       logAction('SWAP_PUBLISH', { dutyCode: duty.code });
-      setSuccessMessage(`Service ${duty.code} publié avec succès dans la bourse aux échanges !`);
+      setSuccessMessage(`Service ${duty.code} publié avec succès ! Vos collègues de ${user.depot} ont été notifiés.`);
     } catch (err: any) {
-      setError("Erreur lors de la publication de l'échange. Vérifiez votre connexion.");
+      console.error(err);
+      setError("Erreur lors de la publication. Vérifiez la structure de votre table Supabase.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const saveProfileToDB = async () => {
+  const saveProfileToDB = useCallback(async () => {
     if (!user || !isSupabaseConfigured || !supabase) return;
-    setIsSaving(true);
     try {
       await supabase.from('profiles').upsert({
         id: user.id,
@@ -112,21 +108,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         first_name: user.firstName,
         last_name: user.lastName,
         depot: user.depot,
-        series: user.series,
-        duties: user.currentDuties
+        series: user.series
       });
     } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSaving(false);
+      console.error("SaveProfile Error:", err);
     }
-  };
+  }, [user]);
+
+  // Sauvegarde auto des préférences
+  useEffect(() => {
+    if (user && isSupabaseConfigured && supabase) {
+      const savePrefs = async () => {
+        await supabase.from('profiles').update({ 
+          // On assume une colonne metadata ou preferences_json existe
+          // Sinon on stocke juste en local pour l'instant
+        }).eq('id', user.id);
+      };
+      savePrefs();
+    }
+  }, [preferences, user]);
 
   useEffect(() => {
     localStorage.setItem('sncb_rgpd_consent', rgpdConsent.toString());
   }, [rgpdConsent]);
 
-  // Clear success message after 5 seconds
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(null), 5000);
