@@ -119,12 +119,26 @@ const App: React.FC = () => {
         </div>
 
         {/* Sidebar Desktop */}
-        <aside className="hidden lg:flex flex-col w-80 h-screen glass border-r border-slate-200 p-8 z-40">
-          <div className="flex items-center gap-4 mb-12 px-2">
-            <div className="w-12 h-12 bg-sncb-blue rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg">B</div>
-            <div>
-              <h1 className="text-xl font-black tracking-tighter text-slate-900 italic">B-SWAP</h1>
-              <p className="text-[10px] uppercase tracking-[0.3em] font-black text-sncb-blue/40">SNCB Premium</p>
+        <aside className="hidden lg:flex flex-col w-80 h-screen glass border-r border-slate-200 p-6 z-40">
+          {/* Header Image Sidebar with the requested train image */}
+          <div className="relative w-full h-48 mb-8 rounded-[32px] overflow-hidden shadow-xl border border-white group">
+            <img 
+              src="https://i.imgur.com/ChBOn7U.jpeg" 
+              alt="SNCB Sidebar Header" 
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+            />
+            {/* Dark overlay for text readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-sncb-blue/90 via-sncb-blue/20 to-transparent"></div>
+            
+            {/* Logo and Brand */}
+            <div className="absolute bottom-6 left-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-sncb-blue font-black text-xl shadow-lg border border-white/20">B</div>
+                <div>
+                  <h1 className="text-xl font-black tracking-tighter text-white italic leading-none">B-SWAP</h1>
+                  <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/70 mt-1">SNCB Premium</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -136,6 +150,19 @@ const App: React.FC = () => {
           </nav>
 
           <div className="mt-auto pt-8 border-t border-slate-100">
+            {/* Small Agent Summary */}
+            {user && (
+              <div className="mb-6 px-4 flex items-center gap-3">
+                 <div className="w-10 h-10 bg-sncb-blue/5 rounded-full flex items-center justify-center text-sncb-blue font-bold text-sm">
+                   {user.firstName?.[0]}
+                 </div>
+                 <div className="flex-grow min-w-0">
+                   <p className="text-xs font-black text-slate-900 truncate">{user.firstName} {user.lastName}</p>
+                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{user.depot}</p>
+                 </div>
+              </div>
+            )}
+
             <button 
               onClick={handleLogout}
               className="flex items-center gap-3 px-5 py-4 text-slate-400 hover:text-red-500 transition-all w-full"
