@@ -47,6 +47,7 @@ export interface UserProfile {
   currentDuties: Duty[];
   rgpdConsent: boolean;
   role?: string;
+  onboardingCompleted: boolean;
 }
 
 export type SwapMatchType = 'simple' | 'block' | 'patchwork';

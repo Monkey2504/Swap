@@ -85,7 +85,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isFloating: data.is_floating || false,
         currentDuties: data.current_duties || [],
         rgpdConsent: data.rgpd_consent || false,
-        role: data.role || 'Chef de train'
+        role: data.role || 'Chef de train',
+        onboardingCompleted: data.onboarding_completed || false
       };
       
       setUser(profile);
@@ -123,7 +124,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         preferences: preferences,
         current_duties: user.currentDuties,
         rgpd_consent: rgpdConsent,
-        is_floating: user.isFloating
+        is_floating: user.isFloating,
+        onboarding_completed: user.onboardingCompleted
       });
       lastSavedUser.current = currentState;
     } catch (err: any) {

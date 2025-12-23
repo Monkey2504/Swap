@@ -6,7 +6,6 @@ const DEFAULT_URL = "https://mhipjaushqtszeokgdgn.supabase.co";
 const DEFAULT_KEY = "sb_publishable_h7S7TfbeXJ3qLy5lCtK0cw_-DQjQ6ua";
 
 export const getSupabaseConfig = () => {
-  // 1. Priorité au localStorage (Configuration manuelle par l'utilisateur)
   const savedUrl = localStorage.getItem('sncb_supabase_url');
   const savedKey = localStorage.getItem('sncb_supabase_key');
   
@@ -14,7 +13,6 @@ export const getSupabaseConfig = () => {
     return { url: savedUrl, key: savedKey };
   }
 
-  // 2. Fallback sur les variables d'environnement Vercel/Production
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return {
       url: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -22,7 +20,6 @@ export const getSupabaseConfig = () => {
     };
   }
 
-  // 3. Dernier recours : Instance de démonstration
   return { url: DEFAULT_URL, key: DEFAULT_KEY };
 };
 
@@ -89,6 +86,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   position TEXT,
   is_floating BOOLEAN DEFAULT false,
   rgpd_consent BOOLEAN DEFAULT false,
+  onboarding_completed BOOLEAN DEFAULT false,
   preferences JSONB DEFAULT '[]'::jsonb,
   current_duties JSONB DEFAULT '[]'::jsonb,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

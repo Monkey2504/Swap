@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { UserPreference, Duty, SwapOffer } from "../types";
 
@@ -17,7 +16,8 @@ Considérez les types de trains (IC, L, S, P), les horaires, et les priorités d
 Le score de match (0-100) doit refléter la satisfaction probable de l'utilisateur.`;
 
 export async function parseRosterDocument(base64Data: string, mimeType: string) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // CORRECTION APPLIQUÉE : Utilisation de la clé publique pour le Front-end
+  const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
@@ -67,13 +67,14 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
     return parsed.services || [];
   } catch (error) {
     console.error("OCR/Parsing Error:", error);
-    return [];
+    throw error; // Rethrow to let caller handle API Key issues
   }
 }
 
 export async function matchSwaps(preferences: UserPreference[], offers: SwapOffer[]) {
   if (offers.length === 0) return [];
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // CORRECTION APPLIQUÉE : Utilisation de la clé publique pour le Front-end
+  const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY }); 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

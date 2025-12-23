@@ -53,11 +53,12 @@ class ProfileService {
     const newProfile = {
       id: params.id,
       sncb_id: isAdmin ? 'ADMIN_01' : (params.metadata?.sncbId || params.email?.split('@')[0] || `user_${params.id.slice(0,5)}`),
-      first_name: isAdmin ? 'Superviseur' : (params.metadata?.firstName || 'Agent'),
-      last_name: isAdmin ? 'SNCB' : (params.metadata?.lastName || 'SNCB'),
+      first_name: isAdmin ? 'Superviseur' : (params.metadata?.firstName || 'François'),
+      last_name: isAdmin ? 'SNCB' : (params.metadata?.lastName || 'Agent'),
       email: params.email,
       depot: 'Bruxelles-Midi',
       role: isAdmin ? 'admin' : 'Chef de train',
+      onboarding_completed: false,
       updated_at: new Date().toISOString()
     };
 
@@ -67,7 +68,6 @@ class ProfileService {
       .upsert(newProfile, { onConflict: 'id' });
 
     if (insertError) {
-      // On ignore le 204 (No Content) car c'est un bug connu de PostgREST avec RLS
       if (insertError.code !== 'PGRST204' && String(insertError.code) !== '204') {
         throw insertError;
       }
@@ -80,7 +80,6 @@ class ProfileService {
       if (profile) return profile;
     }
 
-    // Fallback : renvoyer les données locales si le serveur est lent à indexer
     return { ...newProfile, id: params.id };
   }
 }

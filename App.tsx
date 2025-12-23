@@ -34,14 +34,20 @@ const App: React.FC = () => {
   const { duties, loading: dutiesLoading, refreshDuties } = useDuties(user?.id);
 
   const handleNavigation = useCallback((page: AppPage) => {
+    // Si l'utilisateur n'a pas fini son onboarding, on le force à rester sur le profil
+    if (user && !user.onboardingCompleted && page !== 'profile') {
+      setError("Veuillez d'abord compléter votre profil.");
+      return;
+    }
     localStorage.setItem('swapact_last_page', page);
     setCurrentPage(page);
     clearMessages();
-  }, [clearMessages]);
+  }, [user, clearMessages, setError]);
 
   const handleLoginSuccess = useCallback(async (supabaseUser: User) => {
     try {
       await loadUserProfile(supabaseUser.id, supabaseUser);
+      // On vérifiera l'onboarding au rendu
       const lastPage = localStorage.getItem('swapact_last_page') as AppPage;
       setCurrentPage((lastPage && lastPage !== 'login') ? lastPage : 'profile');
       refreshDuties();
@@ -80,6 +86,13 @@ const App: React.FC = () => {
     initialize();
   }, [handleLoginSuccess, setError]);
 
+  // Si on est connecté mais que le profil n'est pas complété, on force 'profile'
+  useEffect(() => {
+    if (user && !user.onboardingCompleted && currentPage !== 'profile') {
+      setCurrentPage('profile');
+    }
+  }, [user, currentPage]);
+
   const NavItems = [
     { page: 'profile' as const, icon: '👤', label: 'Profil' },
     { page: 'preferences' as const, icon: '⚖️', label: 'Goûts' },
@@ -106,6 +119,8 @@ const App: React.FC = () => {
     }
   };
 
+  const showNav = session && user?.onboardingCompleted;
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-inter">
@@ -115,7 +130,7 @@ const App: React.FC = () => {
           {successMessage && <div className="bg-emerald-600 text-white p-6 rounded-[32px] shadow-2xl animate-scaleUp pointer-events-auto flex justify-between font-black text-xs"><span>✅ {successMessage}</span><button onClick={() => setSuccessMessage(null)}>✕</button></div>}
         </div>
 
-        {/* Top Header App (Épuré) */}
+        {/* Top Header App */}
         {session && (
           <div className="px-10 pt-10 pb-4 flex justify-between items-center bg-transparent">
              <div className="flex items-center gap-4">
@@ -131,12 +146,12 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <main className={`flex-grow ${session ? 'pb-36' : ''}`}>
+        <main className={`flex-grow ${showNav ? 'pb-36' : 'pb-10'}`}>
           {renderPage()}
         </main>
 
-        {/* Bottom Navigation (Style SNCB E500) */}
-        {session && (
+        {/* Bottom Navigation */}
+        {showNav && (
           <nav className="fixed bottom-0 left-0 right-0 z-50 px-8 pb-10">
             <div className="nav-blur border border-white h-24 rounded-[48px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] flex justify-around items-center px-4">
               {NavItems.map(({ page, icon, label }) => (
@@ -164,6 +179,15 @@ const App: React.FC = () => {
               </button>
             </div>
           </nav>
+        )}
+
+        {/* Bouton déconnexion si bloqué sur l'onboarding */}
+        {session && !user?.onboardingCompleted && (
+          <div className="fixed bottom-6 right-6 z-50">
+             <button onClick={handleLogout} className="p-4 bg-white/80 backdrop-blur rounded-2xl shadow-lg text-[10px] font-black uppercase text-slate-400 hover:text-red-500 transition-all border border-slate-100">
+               Abandonner 📤
+             </button>
+          </div>
         )}
       </div>
     </ErrorBoundary>

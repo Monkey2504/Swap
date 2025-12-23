@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -15,7 +15,7 @@ interface ErrorBoundaryState {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-// Explicitly extending React.Component ensures TypeScript correctly recognizes setState, props, and other inherited members.
+// Fix: Explicitly extend React.Component to resolve "Property 'setState' does not exist" and "Property 'props' does not exist" errors.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
@@ -85,12 +85,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         }, 1500);
       });
     } else {
+      // Fix: Use this.setState correctly
       this.setState({ incidentId });
     }
   }
 
   private handleManualRetry() {
     // Reset error state and reload the application context.
+    // Fix: Use this.setState correctly
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
   }
@@ -155,7 +157,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
-    // Accessing props.children correctly through the class component's context.
+    // Fix: Accessing this.props.children correctly through the class component's context.
     return this.props.children;
   }
 }

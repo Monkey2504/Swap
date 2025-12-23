@@ -1,27 +1,54 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useDuties } from '../hooks/useDuties';
 import { parseRosterDocument } from '../services/geminiService';
 import { Duty, CreateDutyDTO } from '../types';
 import { formatError } from '../lib/api';
+import { DEPOTS } from '../constants';
 
 const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading: boolean }> = ({ onNext, duties, dutiesLoading }) => {
-  const { user, setRgpdConsent, setError, addTechLog } = useApp();
+  const { user, updateUserProfile, setRgpdConsent, setError, addTechLog } = useApp();
   const { removeDuty, addDuty } = useDuties(user?.id);
   
   const [isUploading, setIsUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [isEditing, setIsEditing] = useState(!user?.onboardingCompleted);
   
+  // États temporaires pour l'édition
+  const [editFirstName, setEditFirstName] = useState(user?.firstName || 'François');
+  const [editLastName, setEditLastName] = useState(user?.lastName || 'Agent');
+  const [editDepot, setEditDepot] = useState(user?.depot || DEPOTS[0]);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user && !user.onboardingCompleted) {
+      setIsEditing(true);
+    }
+  }, [user]);
+
+  const ensureApiKey = async () => {
+    // @ts-ignore
+    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      // @ts-ignore
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        addTechLog("Clé API manquante pour Gemini 3 Pro. Ouverture du sélecteur...", 'warn', 'AI');
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+      }
+    }
+  };
 
   const processRosterData = async (base64Data: string, mimeType: string) => {
     if (!user) return;
     setIsUploading(true);
     try {
-      addTechLog(`Lancement de l'analyse OCR (${mimeType}) via Gemini...`, 'info', 'AI');
+      await ensureApiKey();
+      addTechLog(`Lancement de l'analyse OCR (${mimeType}) via Gemini 3 Pro...`, 'info', 'AI');
       const services = await parseRosterDocument(base64Data, mimeType);
       
       if (services && services.length > 0) {
@@ -47,7 +74,12 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         setError("Gemini n'a détecté aucun service valide dans ce document.");
       }
     } catch (err: any) {
-      setError("Erreur d'importation : " + formatError(err));
+      const msg = formatError(err);
+      if (msg.includes("Requested entity was not found")) {
+        // @ts-ignore
+        if (window.aistudio) await window.aistudio.openSelectKey();
+      }
+      setError("Erreur d'importation : " + msg);
     } finally {
       setIsUploading(false);
     }
@@ -87,6 +119,20 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
     reader.readAsDataURL(file);
   };
 
+  const handleSaveProfile = () => {
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      alert("Veuillez renseigner votre prénom et votre nom.");
+      return;
+    }
+    updateUserProfile({
+      firstName: editFirstName,
+      lastName: editLastName,
+      depot: editDepot,
+      onboardingCompleted: true
+    });
+    setIsEditing(false);
+  };
+
   if (!user) return null;
 
   return (
@@ -115,123 +161,206 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       )}
 
       {/* Profile Volume Card */}
-      <div className="bg-white p-10 rounded-[56px] sncb-card border-none flex items-center gap-10 shadow-[0_30px_60px_-15px_rgba(0,51,153,0.1)]">
-        <div className="w-28 h-28 rounded-[40px] bg-sncb-blue flex items-center justify-center text-white text-5xl font-black shadow-2xl shadow-sncb-blue/30 transform rotate-3">
-          {user.firstName[0]}
-        </div>
-        <div className="space-y-3">
-          <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic">{user.firstName}</h2>
-          <div className="flex gap-2">
-            <span className="text-[10px] font-black uppercase bg-sncb-blue/5 text-sncb-blue px-4 py-2 rounded-full tracking-wider">{user.depot}</span>
-            <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 px-4 py-2 rounded-full tracking-wider">Série {user.series}</span>
+      <div className="bg-white p-10 rounded-[56px] sncb-card border-none shadow-[0_30px_60px_-15px_rgba(0,51,153,0.1)]">
+        {!user.onboardingCompleted && (
+          <div className="mb-8 p-6 bg-sncb-blue/5 rounded-3xl border border-sncb-blue/10">
+            <p className="text-sncb-blue font-black text-[10px] uppercase tracking-widest mb-1">Bienvenue !</p>
+            <p className="text-slate-600 font-bold text-sm">Veuillez finaliser votre profil avant de commencer à swapper.</p>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* AI Import Actions */}
-      <div className="bg-slate-900 rounded-[56px] p-12 text-white shadow-2xl relative overflow-hidden group">
-        <div className="absolute -top-20 -right-20 w-80 h-80 bg-sncb-blue/20 rounded-full blur-[100px] group-hover:scale-125 transition-all duration-1000"></div>
-        <div className="relative z-10">
-          <p className="text-sncb-yellow font-black text-[11px] uppercase tracking-[0.4em] mb-4">Intégration Roster</p>
-          <p className="text-2xl font-bold leading-tight mb-10 max-w-[320px]">Importez votre planning via photo ou fichier PDF.</p>
-          
-          <div className="grid grid-cols-1 gap-4">
-            <button 
-              onClick={() => {
-                setRgpdConsent(true);
-                setShowCamera(true);
-                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                  .then(s => videoRef.current && (videoRef.current.srcObject = s));
-              }}
-              disabled={isUploading}
-              className="w-full py-7 sncb-button-volume font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 disabled:opacity-50"
-            >
-              Scanner avec Caméra 📸
-            </button>
-
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="w-full py-7 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-[28px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 transition-all disabled:opacity-50"
-            >
-              {isUploading ? 'Analyse en cours...' : 'Importer PDF / Image 📂'}
-            </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept="image/*,.pdf" 
-              className="hidden" 
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Services List - Ticket Style */}
-      <div className="space-y-8">
-        <div className="flex justify-between items-center px-6">
-          <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] italic">Prestations Actives</h3>
-          <span className="text-[10px] font-black text-sncb-blue bg-sncb-blue/5 px-4 py-1.5 rounded-full">
-            {dutiesLoading ? 'Chargement...' : `${duties.length} tours`}
-          </span>
-        </div>
-
-        <div className="space-y-8">
-          {duties.length === 0 && !dutiesLoading ? (
-            <div className="py-24 text-center bg-white rounded-[56px] sncb-card border-dashed border-2 border-slate-100 shadow-none">
-              <div className="text-6xl mb-8 opacity-20">📅</div>
-              <p className="text-slate-400 font-bold italic">Aucun service importé pour le moment.</p>
+        {!isEditing ? (
+          <div className="flex items-center gap-10">
+            <div className="w-28 h-28 rounded-[40px] bg-sncb-blue flex items-center justify-center text-white text-5xl font-black shadow-2xl shadow-sncb-blue/30 transform rotate-3">
+              {user.firstName[0]}
             </div>
-          ) : (
-            duties.map((duty, idx) => (
-              <div 
-                key={duty.id} 
-                className="bg-white rounded-[52px] overflow-hidden sncb-card border-none flex flex-col digital-ticket animate-slideIn"
-                style={{ animationDelay: `${idx * 0.1}s` }}
-              >
-                <div className="p-10 flex items-center justify-between">
-                  <div className="flex items-center gap-8">
-                    <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex flex-col items-center justify-center border border-slate-100 shadow-inner">
-                      <span className="text-2xl font-black text-sncb-blue">{duty.code}</span>
-                      <span className="text-[9px] font-black uppercase text-slate-400 mt-1">{duty.type}</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-4xl font-black text-slate-900 tracking-tighter">{duty.startTime}</span>
-                        <span className="text-slate-200 text-2xl font-light">➔</span>
-                        <span className="text-4xl font-black text-slate-900 tracking-tighter">{duty.endTime || '--:--'}</span>
-                      </div>
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2 px-3 py-1 bg-slate-50 rounded-full inline-block">
-                        {new Date(duty.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                      </p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => removeDuty(duty.id)} 
-                    className="w-14 h-14 rounded-full bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center shadow-sm active:scale-90"
-                  >
-                    ✕
-                  </button>
+            <div className="flex-grow space-y-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic">{user.firstName}</h2>
+                  <p className="text-slate-400 font-bold uppercase text-xs">{user.lastName}</p>
                 </div>
-                <div className="px-12 py-6 bg-slate-50/50 border-t border-dashed border-slate-200 flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Siège de service : {duty.depot || user.depot}</span>
-                  <div className="flex gap-2">
-                    {[1,2,3,4,5].map(i => <div key={i} className="w-1.5 h-1.5 bg-slate-200 rounded-full"></div>)}
-                  </div>
-                </div>
+                <button 
+                  onClick={() => {
+                    setEditFirstName(user.firstName);
+                    setEditLastName(user.lastName);
+                    setEditDepot(user.depot);
+                    setIsEditing(true);
+                  }}
+                  className="p-3 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"
+                  title="Modifier le profil"
+                >
+                  ✏️
+                </button>
               </div>
-            ))
-          )}
-          {dutiesLoading && <div className="p-10 text-center text-slate-300 font-black uppercase text-[10px] animate-pulse">Mise à jour du planning...</div>}
-        </div>
+              <div className="flex gap-2">
+                <span className="text-[10px] font-black uppercase bg-sncb-blue/5 text-sncb-blue px-4 py-2 rounded-full tracking-wider">{user.depot}</span>
+                <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 px-4 py-2 rounded-full tracking-wider">Série {user.series}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <h3 className="text-xl font-black uppercase tracking-tighter italic">
+              {user.onboardingCompleted ? 'Modifier mon profil' : 'Finaliser mon profil'}
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Prénom</label>
+                <input 
+                  type="text" 
+                  value={editFirstName} 
+                  onChange={e => setEditFirstName(e.target.value)}
+                  className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold"
+                  placeholder="François"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Nom</label>
+                <input 
+                  type="text" 
+                  value={editLastName} 
+                  onChange={e => setEditLastName(e.target.value)}
+                  className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold"
+                  placeholder="Agent"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Siège de service (Dépôt)</label>
+              <select 
+                value={editDepot}
+                onChange={e => setEditDepot(e.target.value)}
+                className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 font-bold appearance-none"
+              >
+                {DEPOTS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-4 pt-4">
+              {user.onboardingCompleted && (
+                <button 
+                  onClick={() => setIsEditing(false)}
+                  className="flex-grow py-5 bg-slate-100 rounded-3xl font-black uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-all"
+                >
+                  Annuler
+                </button>
+              )}
+              <button 
+                onClick={handleSaveProfile}
+                className="flex-grow py-5 bg-sncb-blue text-white rounded-3xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-sncb-blue-light transition-all"
+              >
+                {user.onboardingCompleted ? 'Enregistrer' : 'Valider mon profil'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      <button 
-        onClick={onNext} 
-        className="w-full py-8 sncb-button-blue text-white rounded-[36px] font-black uppercase text-[11px] tracking-[0.4em] shadow-2xl active:scale-95 transition-all mt-10"
-      >
-        Préférences de Matching ➔
-      </button>
+      {user.onboardingCompleted && (
+        <>
+          {/* AI Import Actions */}
+          <div className="bg-slate-900 rounded-[56px] p-12 text-white shadow-2xl relative overflow-hidden group">
+            <div className="absolute -top-20 -right-20 w-80 h-80 bg-sncb-blue/20 rounded-full blur-[100px] group-hover:scale-125 transition-all duration-1000"></div>
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-4">
+                <p className="text-sncb-yellow font-black text-[11px] uppercase tracking-[0.4em]">Intégration Roster</p>
+                {/* @ts-ignore */}
+                <button onClick={() => window.aistudio?.openSelectKey()} className="text-[9px] font-black uppercase text-white/40 hover:text-sncb-yellow transition-colors underline decoration-dotted">Clé API 🔑</button>
+              </div>
+              <p className="text-2xl font-bold leading-tight mb-10 max-w-[320px]">Importez votre planning via photo ou fichier PDF.</p>
+              
+              <div className="grid grid-cols-1 gap-4">
+                <button 
+                  onClick={() => {
+                    setRgpdConsent(true);
+                    setShowCamera(true);
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                      .then(s => videoRef.current && (videoRef.current.srcObject = s));
+                  }}
+                  disabled={isUploading}
+                  className="w-full py-7 sncb-button-volume font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 disabled:opacity-50"
+                >
+                  Scanner avec Caméra 📸
+                </button>
+
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full py-7 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-[28px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 transition-all disabled:opacity-50"
+                >
+                  {isUploading ? 'Analyse en cours...' : 'Importer PDF / Image 📂'}
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  accept="image/*,.pdf" 
+                  className="hidden" 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Services List */}
+          <div className="space-y-8">
+            <div className="flex justify-between items-center px-6">
+              <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.4em] italic">Prestations Actives</h3>
+              <span className="text-[10px] font-black text-sncb-blue bg-sncb-blue/5 px-4 py-1.5 rounded-full">
+                {dutiesLoading ? 'Chargement...' : `${duties.length} tours`}
+              </span>
+            </div>
+
+            <div className="space-y-8">
+              {duties.length === 0 && !dutiesLoading ? (
+                <div className="py-24 text-center bg-white rounded-[56px] sncb-card border-dashed border-2 border-slate-100 shadow-none">
+                  <div className="text-6xl mb-8 opacity-20">📅</div>
+                  <p className="text-slate-400 font-bold italic">Aucun service importé pour le moment.</p>
+                </div>
+              ) : (
+                duties.map((duty, idx) => (
+                  <div 
+                    key={duty.id} 
+                    className="bg-white rounded-[52px] overflow-hidden sncb-card border-none flex flex-col digital-ticket animate-slideIn"
+                    style={{ animationDelay: `${idx * 0.1}s` }}
+                  >
+                    <div className="p-10 flex items-center justify-between">
+                      <div className="flex items-center gap-8">
+                        <div className="w-20 h-20 bg-slate-50 rounded-[32px] flex flex-col items-center justify-center border border-slate-100 shadow-inner">
+                          <span className="text-2xl font-black text-sncb-blue">{duty.code}</span>
+                          <span className="text-[9px] font-black uppercase text-slate-400 mt-1">{duty.type}</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-4">
+                            <span className="text-4xl font-black text-slate-900 tracking-tighter">{duty.startTime}</span>
+                            <span className="text-slate-200 text-2xl font-light">➔</span>
+                            <span className="text-4xl font-black text-slate-900 tracking-tighter">{duty.endTime || '--:--'}</span>
+                          </div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2 px-3 py-1 bg-slate-50 rounded-full inline-block">
+                            {new Date(duty.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => removeDuty(duty.id)} 
+                        className="w-14 h-14 rounded-full bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all flex items-center justify-center shadow-sm active:scale-90"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <button 
+            onClick={onNext} 
+            className="w-full py-8 sncb-button-blue text-white rounded-[36px] font-black uppercase text-[11px] tracking-[0.4em] shadow-2xl active:scale-95 transition-all mt-10"
+          >
+            Préférences de Matching ➔
+          </button>
+        </>
+      )}
     </div>
   );
 };
