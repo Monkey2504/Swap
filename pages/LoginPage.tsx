@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { getSupabase, getSupabaseConfig, runDiagnostic } from '../lib/supabase';
 import { formatError } from '../lib/api';
+import { Settings, ShieldCheck, ArrowRight } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess?: (user: User) => Promise<void>;
@@ -52,103 +53,96 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     window.location.reload();
   };
 
-  const checkStatus = async () => {
-    const diag = await runDiagnostic();
-    alert(diag.message + (diag.ok ? "" : "\n\nAssurez-vous d'avoir exécuté le script SQL dans Supabase."));
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-6 font-inter relative overflow-hidden">
-      {/* Background subtil */}
-      <div className="absolute top-[-10%] left-[-5%] w-[40%] aspect-square bg-sncb-blue/5 rounded-full blur-[100px]"></div>
-      <div className="absolute bottom-[-10%] right-[-5%] w-[40%] aspect-square bg-sncb-yellow/10 rounded-full blur-[100px]"></div>
+    <div className="min-h-screen flex items-center justify-center bg-white p-6">
+      {/* Background patterns */}
+      <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-slate-50 to-transparent pointer-events-none"></div>
 
-      <div className="w-full max-w-[450px] z-10">
-        <div className="bg-white rounded-[56px] shadow-[0_30px_60px_-15px_rgba(0,51,153,0.1)] p-12 border border-white animate-fadeIn">
-          <div className="text-center mb-12">
-            <div className="w-24 h-24 bg-sncb-blue rounded-[36px] flex items-center justify-center text-white mx-auto mb-8 shadow-2xl transform rotate-3 hover:rotate-0 transition-all duration-500">
-              <span className="text-5xl font-black italic">B</span>
-            </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">
-              SWAP<span className="text-sncb-blue">ACT</span>
-            </h1>
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.5em] mt-4 opacity-60 italic">Plateforme Collaborative</p>
+      <div className="w-full max-w-md relative z-10 animate-slide-up">
+        <div className="text-center mb-16">
+          <div className="w-20 h-20 bg-sncb-blue rounded-[24px] flex items-center justify-center text-white mx-auto mb-8 shadow-2xl shadow-sncb-blue/20">
+            <span className="text-4xl font-bold tracking-tighter">B</span>
           </div>
-
-          {authError && (
-            <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-[11px] text-red-600 font-bold animate-pulse">
-              ⚠️ {authError}
-            </div>
-          )}
-
-          {showSettings ? (
-            <div className="space-y-6 animate-fadeIn">
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Serveur Cloud</label>
-                  <input type="text" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-mono" value={tempUrl} onChange={e => setTempUrl(e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Clé Publique</label>
-                  <textarea rows={3} className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-mono break-all" value={tempKey} onChange={e => setTempKey(e.target.value)} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={saveConfig} className="py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Mettre à jour</button>
-                  <button onClick={checkStatus} className="py-5 bg-sncb-blue text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Test Flux</button>
-                </div>
-                <button onClick={() => setShowSettings(false)} className="w-full text-[10px] font-black text-slate-400 uppercase py-2">Retour à la connexion</button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleAuth} className="space-y-8">
-              <div className="space-y-4">
-                <input
-                  type="email"
-                  placeholder="nom@sncb.be"
-                  className="w-full px-8 py-5 rounded-[30px] bg-slate-50 border-2 border-transparent focus:border-sncb-blue/20 focus:bg-white outline-none font-bold text-sm transition-all shadow-inner"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                <input
-                  type="password"
-                  placeholder="Mot de passe"
-                  className="w-full px-8 py-5 rounded-[30px] bg-slate-50 border-2 border-transparent focus:border-sncb-blue/20 focus:bg-white outline-none font-bold text-sm transition-all shadow-inner"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full font-black py-6 rounded-[32px] shadow-2xl text-[12px] uppercase tracking-[0.3em] transition-all transform sncb-button-volume ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {loading ? 'Connexion...' : isSignUp ? "S'enregistrer" : "Entrer dans l'app"}
-              </button>
-              
-              <div className="flex flex-col items-center gap-6 pt-4">
-                <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-[11px] font-black text-sncb-blue uppercase tracking-widest hover:underline underline-offset-8 decoration-2">
-                  {isSignUp ? "J'ai déjà mon accès" : "Première connexion ?"}
-                </button>
-                
-                <div className="flex items-center gap-4">
-                  {email === 'admin@admin' && (
-                    <div className="px-5 py-2 bg-amber-50 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-100">
-                      Console Superviseur
-                    </div>
-                  )}
-                  <button type="button" onClick={() => setShowSettings(true)} className="text-[10px] font-black text-slate-300 uppercase hover:text-slate-500 transition-colors">
-                    ⚙️ Paramètres Cloud
-                  </button>
-                </div>
-              </div>
-            </form>
-          )}
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 heading-hero">
+            Swap<span className="text-sncb-blue">Act</span>
+          </h1>
+          <p className="text-slate-400 text-sm mt-3 font-medium">Bourse d'échange intelligente SNCB</p>
         </div>
-        
-        <p className="text-center mt-12 text-slate-400 text-[9px] font-black uppercase tracking-[0.5em] opacity-40">SNCB DSI • Version 2.5</p>
+
+        <div className="bg-white p-2 rounded-[32px] apple-shadow border border-slate-100">
+           <div className="p-8">
+              {authError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-xs text-red-600 font-semibold text-center">
+                  {authError}
+                </div>
+              )}
+
+              {showSettings ? (
+                <div className="space-y-6 animate-fadeIn">
+                   <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-slate-400 ml-3 mb-1 block">SNCB Cloud URL</label>
+                        <input type="text" className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 text-xs font-mono" value={tempUrl} onChange={e => setTempUrl(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-slate-400 ml-3 mb-1 block">API Public Key</label>
+                        <textarea rows={3} className="w-full px-5 py-3 rounded-xl bg-slate-50 border border-slate-100 text-xs font-mono" value={tempKey} onChange={e => setTempKey(e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={saveConfig} className="py-4 bg-slate-900 text-white rounded-xl font-bold text-xs">Sauvegarder</button>
+                        <button onClick={async () => alert((await runDiagnostic()).message)} className="py-4 bg-sncb-blue text-white rounded-xl font-bold text-xs">Diagnostic</button>
+                      </div>
+                      <button onClick={() => setShowSettings(false)} className="w-full text-[10px] font-bold text-slate-400 uppercase mt-2">Retour</button>
+                   </div>
+                </div>
+              ) : (
+                <form onSubmit={handleAuth} className="space-y-6">
+                   <div className="space-y-3">
+                      <input
+                        type="email"
+                        placeholder="nom@sncb.be"
+                        className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-sncb-blue/30 outline-none font-semibold text-sm transition-all"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                      <input
+                        type="password"
+                        placeholder="Mot de passe"
+                        className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:border-sncb-blue/30 outline-none font-semibold text-sm transition-all"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                   </div>
+
+                   <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-5 bg-sncb-blue text-white rounded-2xl font-bold text-sm shadow-xl shadow-sncb-blue/20 flex items-center justify-center gap-3 transition-all hover:bg-[#002a7a] active:scale-95 disabled:opacity-50"
+                   >
+                     {loading ? 'Connexion...' : isSignUp ? "S'inscrire" : "Se connecter"}
+                     {!loading && <ArrowRight size={18} />}
+                   </button>
+
+                   <div className="flex flex-col items-center gap-6 pt-4">
+                      <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-xs font-bold text-sncb-blue hover:underline">
+                        {isSignUp ? "Déjà un compte ?" : "Créer un accès"}
+                      </button>
+                      
+                      <button type="button" onClick={() => setShowSettings(true)} className="flex items-center gap-2 text-[10px] font-bold text-slate-300 uppercase hover:text-slate-500 transition-colors">
+                        <Settings size={12} />
+                        Cloud Settings
+                      </button>
+                   </div>
+                </form>
+              )}
+           </div>
+        </div>
+
+        <div className="text-center mt-12">
+           <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">Designed by SNCB DSI • v2.5.1</p>
+        </div>
       </div>
     </div>
   );

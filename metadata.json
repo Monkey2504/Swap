@@ -1,9 +1,9 @@
 {
-  "name": "SwapACT SNCB",
+  "name": "SwapACT Premium SNCB",
   "short_name": "SwapACT",
-  "description": "Plateforme d'échange de services intelligente pour les accompagnateurs de train SNCB.",
+  "description": "Plateforme intelligente d'échange de services pour agents SNCB. Design moderne, matching IA.",
   "theme_color": "#003399",
-  "background_color": "#f5f7fa",
+  "background_color": "#f5f5f7",
   "display": "standalone",
   "orientation": "portrait",
   "scope": "/",

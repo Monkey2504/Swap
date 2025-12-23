@@ -1,113 +1,97 @@
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap');
 
-@keyframes slideInRight {
-  from { transform: translateX(50px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes pulseYellow {
-  0% { box-shadow: 0 0 0 0 rgba(255, 210, 0, 0.4); }
-  70% { box-shadow: 0 0 0 15px rgba(255, 210, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 210, 0, 0); }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.6s cubic-bezier(0.2, 1, 0.3, 1) forwards;
-}
-
-.animate-slideIn {
-  animation: slideInRight 0.7s cubic-bezier(0.2, 1, 0.3, 1) forwards;
-}
-
-.animate-pulse-sncb {
-  animation: pulseYellow 2s infinite;
+:root {
+  --apple-blue: #0071e3;
+  --sncb-blue: #003399;
+  --bg-color: #f5f5f7;
 }
 
 body {
   margin: 0;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--bg-color);
+  color: #1d1d1f;
   overflow-x: hidden;
-  font-family: 'Inter', sans-serif;
 }
 
-/* SNCB Volume Design - Ombres 3D et Profondeur */
-.sncb-card {
-  background: white;
-  border-radius: 40px;
-  box-shadow: 
-    0 20px 25px -5px rgba(0, 51, 153, 0.05),
-    0 10px 10px -5px rgba(0, 51, 153, 0.02),
-    inset 0 2px 4px 0 rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(226, 232, 240, 0.5);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.sncb-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 25px 50px -12px rgba(0, 51, 153, 0.12);
-}
-
-.sncb-button-volume {
-  position: relative;
-  background: #FFD200;
-  color: #000;
-  border-radius: 28px;
-  box-shadow: 0 8px 0 0 #d9b300;
-  transition: all 0.1s ease;
-  top: 0;
-}
-
-.sncb-button-volume:active {
-  top: 4px;
-  box-shadow: 0 4px 0 0 #d9b300;
-}
-
-.sncb-button-blue {
-  position: relative;
-  background: #003399;
-  color: #fff;
-  border-radius: 28px;
-  box-shadow: 0 8px 0 0 #002266;
-  transition: all 0.1s ease;
-  top: 0;
-}
-
-.sncb-button-blue:active {
-  top: 4px;
-  box-shadow: 0 4px 0 0 #002266;
-}
-
-/* Effet Billet Digital */
-.digital-ticket {
-  position: relative;
-  background: white;
-  overflow: hidden;
-}
-
-.digital-ticket::after, .digital-ticket::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  height: 30px;
-  background: #f8fafc; /* Couleur du fond de page */
-  border-radius: 50%;
-  z-index: 5;
-}
-
-.digital-ticket::after { left: -15px; box-shadow: inset -5px 0 10px rgba(0,0,0,0.02); }
-.digital-ticket::before { right: -15px; box-shadow: inset 5px 0 10px rgba(0,0,0,0.02); }
-
-.nav-blur {
-  background: rgba(255, 255, 255, 0.85);
+/* Apple-style Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Sophisticated Shadows */
+.apple-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.apple-shadow-hover:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+  transform: translateY(-2px);
+  transition: all 0.3s cubic-bezier(0, 0, 0.5, 1);
+}
+
+/* Typography & Layout */
+.heading-hero {
+  letter-spacing: -0.015em;
+  font-weight: 700;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.2);
+}
+
+/* Animations */
+@keyframes slideInUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.btn-apple-primary {
+  background-color: var(--sncb-blue);
+  color: white;
+  border-radius: 980px;
+  padding: 12px 24px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-apple-primary:hover {
+  background-color: #002a7a;
+  transform: scale(1.02);
+}
+
+.btn-apple-secondary {
+  background-color: rgba(0, 51, 153, 0.1);
+  color: var(--sncb-blue);
+  border-radius: 980px;
+  padding: 12px 24px;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }

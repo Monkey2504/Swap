@@ -11,6 +11,7 @@ import { getSupabase, isSupabaseConfigured } from './lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { authService } from './lib/api/authService';
 import { useDuties } from './hooks/useDuties';
+import { User as UserIcon, Settings, Repeat, LayoutDashboard, LogOut, ShieldCheck } from 'lucide-react';
 
 type AppPage = 'login' | 'profile' | 'preferences' | 'swaps' | 'admin';
 
@@ -34,7 +35,6 @@ const App: React.FC = () => {
   const { duties, loading: dutiesLoading, refreshDuties } = useDuties(user?.id);
 
   const handleNavigation = useCallback((page: AppPage) => {
-    // Si l'utilisateur n'a pas fini son onboarding, on le force à rester sur le profil
     if (user && !user.onboardingCompleted && page !== 'profile') {
       setError("Veuillez d'abord compléter votre profil.");
       return;
@@ -47,7 +47,6 @@ const App: React.FC = () => {
   const handleLoginSuccess = useCallback(async (supabaseUser: User) => {
     try {
       await loadUserProfile(supabaseUser.id, supabaseUser);
-      // On vérifiera l'onboarding au rendu
       const lastPage = localStorage.getItem('swapact_last_page') as AppPage;
       setCurrentPage((lastPage && lastPage !== 'login') ? lastPage : 'profile');
       refreshDuties();
@@ -86,24 +85,17 @@ const App: React.FC = () => {
     initialize();
   }, [handleLoginSuccess, setError]);
 
-  // Si on est connecté mais que le profil n'est pas complété, on force 'profile'
   useEffect(() => {
     if (user && !user.onboardingCompleted && currentPage !== 'profile') {
       setCurrentPage('profile');
     }
   }, [user, currentPage]);
 
-  const NavItems = [
-    { page: 'profile' as const, icon: '👤', label: 'Profil' },
-    { page: 'preferences' as const, icon: '⚖️', label: 'Goûts' },
-    { page: 'swaps' as const, icon: '🔄', label: 'Bourse' },
-  ];
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
-        <div className="w-12 h-12 border-[6px] border-sncb-blue/10 border-t-sncb-blue rounded-full animate-spin"></div>
-        <p className="mt-10 text-slate-300 font-black uppercase tracking-[0.5em] text-[10px]">Liaison Sécurisée</p>
+        <div className="w-12 h-12 border-[3px] border-slate-200 border-t-sncb-blue rounded-full animate-spin"></div>
+        <p className="mt-6 text-slate-400 font-medium text-sm tracking-tight">Vérification des accès...</p>
       </div>
     );
   }
@@ -119,76 +111,112 @@ const App: React.FC = () => {
     }
   };
 
-  const showNav = session && user?.onboardingCompleted;
+  const NavItem = ({ page, icon: Icon, label }: { page: AppPage, icon: any, label: string }) => (
+    <button
+      onClick={() => handleNavigation(page)}
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all w-full ${
+        currentPage === page 
+          ? 'bg-sncb-blue text-white shadow-lg' 
+          : 'text-slate-500 hover:bg-slate-100'
+      }`}
+    >
+      <Icon size={20} className={currentPage === page ? 'text-white' : 'text-slate-400'} />
+      <span className="font-semibold text-sm">{label}</span>
+    </button>
+  );
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-inter">
-        {/* Notifications Flottantes */}
-        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-8 pointer-events-none">
-          {error && <div className="bg-red-600 text-white p-6 rounded-[32px] shadow-2xl animate-scaleUp pointer-events-auto flex justify-between font-black text-xs"><span>⚠️ {error}</span><button onClick={() => setError(null)}>✕</button></div>}
-          {successMessage && <div className="bg-emerald-600 text-white p-6 rounded-[32px] shadow-2xl animate-scaleUp pointer-events-auto flex justify-between font-black text-xs"><span>✅ {successMessage}</span><button onClick={() => setSuccessMessage(null)}>✕</button></div>}
+      <div className="min-h-screen bg-[#F5F5F7] flex overflow-hidden">
+        {/* Messages Flottants (Toast) */}
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-sm px-4">
+          {error && (
+            <div className="glass bg-red-50/90 border-red-100 p-4 rounded-2xl shadow-2xl animate-slide-up flex items-start gap-3">
+              <span className="text-red-500">⚠️</span>
+              <div className="flex-grow">
+                <p className="text-sm font-semibold text-red-900">Erreur</p>
+                <p className="text-xs text-red-700">{error}</p>
+              </div>
+              <button onClick={() => setError(null)} className="text-slate-400">✕</button>
+            </div>
+          )}
+          {successMessage && (
+            <div className="glass bg-emerald-50/90 border-emerald-100 p-4 rounded-2xl shadow-2xl animate-slide-up flex items-start gap-3">
+              <span className="text-emerald-500">✅</span>
+              <div className="flex-grow">
+                <p className="text-sm font-semibold text-emerald-900">Succès</p>
+                <p className="text-xs text-emerald-700">{successMessage}</p>
+              </div>
+              <button onClick={() => setSuccessMessage(null)} className="text-slate-400">✕</button>
+            </div>
+          )}
         </div>
 
-        {/* Top Header App */}
         {session && (
-          <div className="px-10 pt-10 pb-4 flex justify-between items-center bg-transparent">
-             <div className="flex items-center gap-4">
-               <div className="w-10 h-10 bg-sncb-blue rounded-2xl flex items-center justify-center text-white text-xs font-black shadow-xl">B</div>
-               <span className="font-black text-sm uppercase tracking-widest italic">Swap<span className="text-sncb-blue">Act</span></span>
-             </div>
-             {isSaving && (
-               <div className="flex items-center gap-3 bg-white/50 backdrop-blur px-4 py-2 rounded-full border border-white">
-                 <div className="w-2 h-2 bg-sncb-blue rounded-full animate-pulse"></div>
-                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Sync Cloud</span>
-               </div>
-             )}
-          </div>
-        )}
+          <>
+            {/* Sidebar for Desktop */}
+            <aside className="hidden md:flex flex-col w-72 h-screen glass border-r border-slate-200 p-6 z-40">
+              <div className="flex items-center gap-3 mb-12 px-2">
+                <div className="w-10 h-10 bg-sncb-blue rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-inner">B</div>
+                <div>
+                  <h1 className="text-lg font-bold tracking-tight text-slate-900">Swap<span className="text-sncb-blue">Act</span></h1>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">SNCB Platform</p>
+                </div>
+              </div>
 
-        <main className={`flex-grow ${showNav ? 'pb-36' : 'pb-10'}`}>
-          {renderPage()}
-        </main>
+              <nav className="flex-grow space-y-2">
+                <NavItem page="profile" icon={UserIcon} label="Mon Profil & Roster" />
+                <NavItem page="preferences" icon={Settings} label="Mes Préférences" />
+                <NavItem page="swaps" icon={Repeat} label="Bourse aux Échanges" />
+                {user?.role === 'admin' && (
+                  <NavItem page="admin" icon={ShieldCheck} label="Administration" />
+                )}
+              </nav>
 
-        {/* Bottom Navigation */}
-        {showNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-50 px-8 pb-10">
-            <div className="nav-blur border border-white h-24 rounded-[48px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] flex justify-around items-center px-4">
-              {NavItems.map(({ page, icon, label }) => (
-                <button
-                  key={page}
-                  onClick={() => handleNavigation(page)}
-                  className={`flex flex-col items-center gap-2 transition-all duration-500 transform ${currentPage === page ? 'text-sncb-blue scale-110 -translate-y-2' : 'text-slate-300'}`}
+              <div className="mt-auto space-y-4">
+                {isSaving && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Synchronisation Cloud</span>
+                  </div>
+                )}
+                <button 
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all w-full mt-4"
                 >
-                  <span className="text-3xl filter drop-shadow-sm">{icon}</span>
-                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${currentPage === page ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>{label}</span>
-                  {currentPage === page && <div className="w-1.5 h-1.5 bg-sncb-blue rounded-full animate-pulse"></div>}
+                  <LogOut size={20} />
+                  <span className="font-semibold text-sm">Déconnexion</span>
                 </button>
-              ))}
-              
-              <div className="w-px h-10 bg-slate-200/50 mx-2"></div>
-              
-              {user?.role === 'admin' && (
-                <button onClick={() => handleNavigation('admin')} className={`flex flex-col items-center gap-2 transform transition-transform ${currentPage === 'admin' ? 'text-slate-900 scale-110 -translate-y-2' : 'text-slate-300'}`}>
-                  <span className="text-3xl">🛠️</span>
-                </button>
-              )}
-              
-              <button onClick={handleLogout} className="flex flex-col items-center gap-2 text-slate-300 hover:text-red-500 transition-colors">
-                <span className="text-3xl">📤</span>
-              </button>
-            </div>
-          </nav>
+              </div>
+            </aside>
+
+            {/* Bottom Nav for Mobile */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 glass border-t border-slate-200 h-20 px-6 flex items-center justify-around z-50">
+               <button onClick={() => handleNavigation('profile')} className={`flex flex-col items-center gap-1 ${currentPage === 'profile' ? 'text-sncb-blue' : 'text-slate-400'}`}>
+                 <UserIcon size={24} />
+                 <span className="text-[10px] font-bold">Profil</span>
+               </button>
+               <button onClick={() => handleNavigation('preferences')} className={`flex flex-col items-center gap-1 ${currentPage === 'preferences' ? 'text-sncb-blue' : 'text-slate-400'}`}>
+                 <Settings size={24} />
+                 <span className="text-[10px] font-bold">Gouts</span>
+               </button>
+               <button onClick={() => handleNavigation('swaps')} className={`flex flex-col items-center gap-1 ${currentPage === 'swaps' ? 'text-sncb-blue' : 'text-slate-400'}`}>
+                 <Repeat size={24} />
+                 <span className="text-[10px] font-bold">Swaps</span>
+               </button>
+               <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-slate-400">
+                 <LogOut size={24} />
+                 <span className="text-[10px] font-bold">Sortir</span>
+               </button>
+            </nav>
+          </>
         )}
 
-        {/* Bouton déconnexion si bloqué sur l'onboarding */}
-        {session && !user?.onboardingCompleted && (
-          <div className="fixed bottom-6 right-6 z-50">
-             <button onClick={handleLogout} className="p-4 bg-white/80 backdrop-blur rounded-2xl shadow-lg text-[10px] font-black uppercase text-slate-400 hover:text-red-500 transition-all border border-slate-100">
-               Abandonner 📤
-             </button>
-          </div>
-        )}
+        <main className={`flex-grow overflow-y-auto ${session ? 'md:p-12 p-6' : ''}`}>
+           <div className={`mx-auto ${session ? 'max-w-6xl' : ''}`}>
+              {renderPage()}
+           </div>
+        </main>
       </div>
     </ErrorBoundary>
   );
