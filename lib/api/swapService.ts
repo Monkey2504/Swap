@@ -13,23 +13,30 @@ class SwapService {
   }
 
   async getAvailableSwaps(
-    depot: string, 
-    excludeUserId: string, 
+    depot?: string, 
+    excludeUserId?: string, 
     limit: number = 20, 
     offset: number = 0
   ): Promise<SwapOffer[]> {
     const client = this.checkConfig();
     
-    // Jointure simplifiée via comptage des requêtes
-    const { data, error } = await client
+    let query = client
       .from('swap_offers')
       .select(`
         *,
         swap_requests(count)
       `)
-      .eq('depot', depot)
-      .neq('user_id', excludeUserId)
-      .eq('status', 'active')
+      .eq('status', 'active');
+
+    if (depot) {
+      query = query.eq('depot', depot);
+    }
+
+    if (excludeUserId) {
+      query = query.neq('user_id', excludeUserId);
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -43,7 +50,6 @@ class SwapService {
     const firstName = nameParts[0] || 'Agent';
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'SNCB';
 
-    // Added missing required properties matchType and status, and included type
     return {
       id: item.id,
       user: { 
@@ -99,7 +105,7 @@ class SwapService {
     const client = this.checkConfig();
     
     const channel = client
-      .channel(`swaps-${depot}-${Date.now()}`) // Unique channel ID
+      .channel(`swaps-${depot}-${Date.now()}`) 
       .on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
@@ -128,7 +134,6 @@ class SwapService {
         
         if (likeTypes.includes(o.offeredDuty.type)) { score += 25; reasons.push(`Type ${o.offeredDuty.type} apprécié`); }
         if (dislikeTypes.includes(o.offeredDuty.type)) { score -= 30; reasons.push(`Type ${o.offeredDuty.type} non souhaité`); }
-        // The type property is now part of the SwapOffer interface
         if (o.type === 'manual_request') { score += 15; reasons.push("Besoin urgent"); }
 
         return { ...o, matchScore: Math.max(0, Math.min(100, score)), matchReasons: reasons };

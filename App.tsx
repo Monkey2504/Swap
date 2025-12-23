@@ -7,13 +7,14 @@ import PreferencesPage from './pages/PreferencesPage';
 import SwapBoard from './pages/SwapBoard';
 import AdminConsole from './pages/AdminConsole';
 import LoginPage from './pages/LoginPage';
+import StationDictionary from './pages/StationDictionary';
 import { getSupabase, isSupabaseConfigured } from './lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { authService } from './lib/api/authService';
 import { useDuties } from './hooks/useDuties';
-import { User as UserIcon, Settings, Repeat, LogOut, ShieldCheck, ChevronRight } from 'lucide-react';
+import { User as UserIcon, Settings, Repeat, LogOut, ShieldCheck, ChevronRight, BookOpen } from 'lucide-react';
 
-type AppPage = 'login' | 'profile' | 'preferences' | 'swaps' | 'admin';
+type AppPage = 'login' | 'profile' | 'preferences' | 'swaps' | 'admin' | 'dictionary';
 
 const App: React.FC = () => {
   const { 
@@ -120,17 +121,13 @@ const App: React.FC = () => {
 
         {/* Sidebar Desktop */}
         <aside className="hidden lg:flex flex-col w-80 h-screen glass border-r border-slate-200 p-6 z-40">
-          {/* Header Image Sidebar with the requested train image */}
           <div className="relative w-full h-48 mb-8 rounded-[32px] overflow-hidden shadow-xl border border-white group">
             <img 
               src="https://i.imgur.com/ChBOn7U.jpeg" 
               alt="SNCB Sidebar Header" 
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
             />
-            {/* Dark overlay for text readability */}
             <div className="absolute inset-0 bg-gradient-to-t from-sncb-blue/90 via-sncb-blue/20 to-transparent"></div>
-            
-            {/* Logo and Brand */}
             <div className="absolute bottom-6 left-6">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-sncb-blue font-black text-xl shadow-lg border border-white/20">B</div>
@@ -146,11 +143,11 @@ const App: React.FC = () => {
             <NavItem page="profile" icon={UserIcon} label="Profil & Roster" />
             <NavItem page="preferences" icon={Settings} label="Goûts & Filtres" />
             <NavItem page="swaps" icon={Repeat} label="Bourse aux Swaps" />
+            <NavItem page="dictionary" icon={BookOpen} label="Dictionnaire" />
             {user?.role === 'admin' && <NavItem page="admin" icon={ShieldCheck} label="Administration" />}
           </nav>
 
           <div className="mt-auto pt-8 border-t border-slate-100">
-            {/* Small Agent Summary */}
             {user && (
               <div className="mb-6 px-4 flex items-center gap-3">
                  <div className="w-10 h-10 bg-sncb-blue/5 rounded-full flex items-center justify-center text-sncb-blue font-bold text-sm">
@@ -185,9 +182,9 @@ const App: React.FC = () => {
             </div>
             <span className="text-[10px] font-black uppercase tracking-widest">Swap</span>
           </button>
-          <button onClick={() => handleNavigation('preferences')} className={`flex flex-col items-center gap-1 ${currentPage === 'preferences' ? 'text-sncb-blue' : 'text-slate-400'}`}>
-            <Settings size={22} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Gouts</span>
+          <button onClick={() => handleNavigation('dictionary')} className={`flex flex-col items-center gap-1 ${currentPage === 'dictionary' ? 'text-sncb-blue' : 'text-slate-400'}`}>
+            <BookOpen size={22} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Codes</span>
           </button>
         </nav>
 
@@ -196,6 +193,7 @@ const App: React.FC = () => {
               {currentPage === 'profile' && <ProfilePage onNext={() => handleNavigation('preferences')} duties={duties} dutiesLoading={dutiesLoading} />}
               {currentPage === 'preferences' && <PreferencesPage preferences={useApp().preferences} setPreferences={useApp().setPreferences} onNext={() => handleNavigation('swaps')} />}
               {currentPage === 'swaps' && (user ? <SwapBoard user={user} preferences={useApp().preferences} onRefreshDuties={refreshDuties} /> : null)}
+              {currentPage === 'dictionary' && <StationDictionary />}
               {currentPage === 'admin' && <AdminConsole />}
            </div>
         </main>

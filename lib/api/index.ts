@@ -16,29 +16,31 @@ export const formatError = (err: any): string => {
   if (typeof err === 'string') return err;
   
   // Si c'est un objet Error standard
-  if (err instanceof Error) return err.message;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes('user already registered')) return "Cette adresse e-mail est déjà utilisée.";
+    if (msg.includes('invalid login credentials')) return "Identifiants SNCB incorrects.";
+    if (msg.includes('email not confirmed')) return "Veuillez confirmer votre e-mail via le lien envoyé.";
+    return err.message;
+  }
 
   // Gestion spécifique Supabase / PostgREST
-  if (err.error?.message) return String(err.error.message);
-  if (err.message && typeof err.message === 'string') return err.message;
-  if (err.error_description && typeof err.error_description === 'string') return err.error_description;
+  if (err.error?.message) return formatError(err.error.message);
+  if (err.message && typeof err.message === 'string') return formatError(err.message);
   
   // Cas spécifique code d'erreur Supabase
   if (err.code && typeof err.code === 'string') {
-    if (err.code === 'PGRST204') return "Données enregistrées mais pas encore propagées sur le réseau (RLS). Réessayez dans 2 secondes.";
-    if (err.code === '42501') return "Accès refusé par le serveur SNCB Cloud (Permissions RLS).";
-    if (err.code === 'invalid_credentials') return "Identifiants SNCB invalides.";
+    if (err.code === 'PGRST204') return "Action réussie. Propagation Cloud en cours...";
+    if (err.code === '42501') return "Accès restreint par le serveur SNCB Cloud.";
+    if (err.code === '23505') return "Donnée déjà existante (doublon).";
     return `Erreur technique (${err.code}): ${err.details || err.message || 'Détails indisponibles'}`;
   }
-
-  // Fallback sécurisé : on essaie de trouver une propriété textuelle
-  if (err.statusText) return `Erreur serveur : ${err.statusText}`;
 
   try {
     const stringified = JSON.stringify(err);
     if (stringified === '{}') return String(err);
     return stringified;
   } catch {
-    return "Une erreur technique s'est produite. Contactez le support.";
+    return "Une erreur technique s'est produite.";
   }
 };

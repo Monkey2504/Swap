@@ -52,17 +52,17 @@ class ProfileService {
     const isAdmin = params.email?.toLowerCase() === 'admin@admin';
     const newProfile = {
       id: params.id,
-      sncb_id: isAdmin ? 'ADMIN_01' : (params.metadata?.sncbId || params.email?.split('@')[0] || `user_${params.id.slice(0,5)}`),
+      sncb_id: isAdmin ? 'ADMIN_01' : (params.metadata?.sncbId || params.email?.split('@')[0] || `agent_${params.id.slice(0,5)}`),
       first_name: isAdmin ? 'Superviseur' : (params.metadata?.firstName || 'François'),
       last_name: isAdmin ? 'SNCB' : (params.metadata?.lastName || 'Agent'),
       email: params.email,
       depot: 'Bruxelles-Midi',
-      role: isAdmin ? 'admin' : 'Chef de train',
+      role: isAdmin ? 'admin' : 'Conducteur',
       onboarding_completed: false,
       updated_at: new Date().toISOString()
     };
 
-    // Tentative d'insertion
+    // Tentative d'insertion avec gestion silencieuse du 204 (success)
     const { error: insertError } = await client
       .from('profiles')
       .upsert(newProfile, { onConflict: 'id' });
@@ -73,9 +73,9 @@ class ProfileService {
       }
     }
 
-    // Boucle d'attente pour la réplication / visibilité RLS
+    // Retry loop pour s'assurer que le RLS a bien propagé le droit de lecture
     for (let i = 0; i < 5; i++) {
-      await new Promise(r => setTimeout(r, 800)); 
+      await new Promise(r => setTimeout(r, 1000)); 
       profile = await this.getProfile(params.id);
       if (profile) return profile;
     }

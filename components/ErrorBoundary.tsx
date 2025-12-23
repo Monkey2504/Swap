@@ -15,7 +15,7 @@ interface ErrorBoundaryState {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-// Fix: Use Component directly from 'react' to ensure that TypeScript correctly identifies the base class and its methods like setState and props.
+// Fix: Extending imported Component directly instead of React.Component to ensure inheritance is correctly recognized by TypeScript and provides access to setState and props.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
@@ -75,22 +75,24 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error(`[AUDIT] Incident ${incidentId} rapporté au SIEM:\n${JSON.stringify(report, null, 2)}`);
 
     if (this.isRecoverable(error) && this.state.recoveryAttempts < this.MAX_RECOVERY_ATTEMPTS) {
-      // Use standard React setState to track recovery attempts and retry automatically.
+      // Fix: setState is correctly inherited from Component.
       this.setState(prevState => ({
         incidentId,
         recoveryAttempts: (prevState.recoveryAttempts || 0) + 1
       }), () => {
         setTimeout(() => {
+          // Fix: Resetting error state automatically for transient network failures via inherited setState.
           this.setState({ hasError: false });
         }, 1500);
       });
     } else {
+      // Fix: Record incident ID for non-recoverable errors using inherited setState.
       this.setState({ incidentId });
     }
   }
 
   private handleManualRetry() {
-    // Reset error state and reload the application context.
+    // Fix: Properly utilizing inherited setState from Component to reset before reload.
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
   }
@@ -121,40 +123,26 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <div className="w-20 h-20 bg-yellow-400 rounded-2xl flex items-center justify-center text-blue-900 text-4xl font-black mx-auto mb-4 shadow-inner">
                 !
               </div>
-              <h1 className="text-white text-2xl font-black tracking-tight uppercase">Erreur Système</h1>
+              <h2 className="text-white text-xl font-black uppercase tracking-tighter italic">Incident Technique</h2>
+              <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-2">Référence: {this.state.incidentId}</p>
             </div>
-            
-            <div className="p-8 text-center">
-              <p className="text-gray-600 font-medium mb-6 leading-relaxed">
-                L'application a rencontré un problème technique imprévu. Votre session a été sécurisée.
+            <div className="p-8 text-center space-y-6">
+              <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                Une erreur inattendue empêche l'affichage du module. Nos équipes ont été alertées.
               </p>
-              
-              <div className="bg-slate-50 border rounded-2xl p-4 mb-8">
-                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">ID Incident Support</p>
-                <p className="text-2xl font-black text-blue-900 font-mono tracking-tighter">
-                  {this.state.incidentId || 'UNAVAILABLE'}
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={this.handleManualRetry}
-                  className="w-full bg-blue-900 text-white px-6 py-4 rounded-2xl font-black hover:bg-blue-800 transition shadow-lg active:scale-95"
-                >
-                  REDÉMARRER L'APPLICATION
-                </button>
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 p-4 border-t text-[9px] text-gray-400 font-bold uppercase tracking-tighter flex justify-between">
-              <span>SNCB ACT SWAP v2.5</span>
-              <span>© {new Date().getFullYear()} DSI-FER</span>
+              <button 
+                onClick={this.handleManualRetry}
+                className="w-full py-4 bg-sncb-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-sncb-blue/20 hover:bg-blue-800 transition-all"
+              >
+                Redémarrer l'application
+              </button>
             </div>
           </div>
         </div>
       );
     }
 
+    // Fix: access inherited props.children correctly from the Component base class.
     return this.props.children;
   }
 }
