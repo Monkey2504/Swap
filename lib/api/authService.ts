@@ -18,6 +18,22 @@ class AuthService {
     return data;
   }
 
+  async signInWithGoogle() {
+    const client = this.checkConfig();
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+    if (error) throw error;
+    return data;
+  }
+
   async signUp(email: string, password: string, metadata: any) {
     const client = this.checkConfig();
     const { data, error } = await client.auth.signUp({
