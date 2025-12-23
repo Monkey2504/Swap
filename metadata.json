@@ -1,6 +1,13 @@
 {
-  "name": "Appli Swap SNCB",
-  "description": "Une application métier intelligente pour faciliter les échanges (SWAP) de services entre accompagnateurs de train (ACT) à la SNCB, intégrant l'IA pour le matching et le respect des contraintes RGPS.",
+  "name": "SwapACT SNCB",
+  "short_name": "SwapACT",
+  "description": "Plateforme d'échange de services intelligente pour les accompagnateurs de train SNCB.",
+  "theme_color": "#003399",
+  "background_color": "#f5f7fa",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
   "requestFramePermissions": [
     "camera"
   ]

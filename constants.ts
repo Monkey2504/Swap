@@ -1,5 +1,5 @@
 
-import { Duty, PreferenceLevel, UserPreference } from './types';
+import { Duty, PreferenceLevel, UserPreference, UserProfile } from './types';
 
 export type DepotRole = 'Conducteur' | 'Chef de train' | 'Chef de bord' | 'Flottant';
 
@@ -8,18 +8,11 @@ export interface Station {
   name: string;
 }
 
-export interface StaffMember {
-  id: string;
-  firstName: string;
-  lastName: string;
-  sncbId: string;
-  depot: string;
-  series: string;
-  position: string;
-  role: DepotRole;
-  email?: string;
-  phone?: string;
-}
+// StaffMember est maintenant un alias de UserProfile pour la cohérence
+export type StaffMember = UserProfile;
+
+export const APP_VERSION = '2.5.0';
+export const DEPOTS = ['Bruxelles-Midi', 'Namur', 'Liège-Guillemins', 'Mons', 'Charleroi-Central', 'Gand-Saint-Pierre', 'Anvers-Central'];
 
 export const generateId = (prefix: string = 'id'): string => {
   try {
@@ -103,7 +96,7 @@ export const NOMENCLATURE = {
 };
 
 export const MOCK_STAFF_LIST: StaffMember[] = [
-  { id: '1', firstName: 'Jean', lastName: 'Dupont', sncbId: '78798801', depot: 'Bruxelles-Midi', series: '702', position: '12', role: 'Chef de train' },
-  { id: '2', firstName: 'Marc', lastName: 'Lambert', sncbId: '78798802', depot: 'Bruxelles-Midi', series: '702', position: '15', role: 'Chef de train' },
-  { id: '3', firstName: 'Sophie', lastName: 'Vandevelde', sncbId: '79200110', depot: 'Namur', series: '101', position: '05', role: 'Conducteur' }
+  { id: '1', firstName: 'Jean', lastName: 'Dupont', sncbId: '78798801', email: 'jean.dupont@sncb.be', depot: 'Bruxelles-Midi', series: '702', position: '12', role: 'Chef de train', isFloating: false, currentDuties: [], rgpdConsent: true },
+  { id: '2', firstName: 'Marc', lastName: 'Lambert', sncbId: '78798802', email: 'marc.lambert@sncb.be', depot: 'Bruxelles-Midi', series: '702', position: '15', role: 'Chef de train', isFloating: false, currentDuties: [], rgpdConsent: true },
+  { id: '3', firstName: 'Sophie', lastName: 'Vandevelde', sncbId: '79200110', email: 'sophie.vandevelde@sncb.be', depot: 'Namur', series: '101', position: '05', role: 'Conducteur', isFloating: false, currentDuties: [], rgpdConsent: true }
 ];

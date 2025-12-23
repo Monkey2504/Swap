@@ -1,11 +1,11 @@
 
 import React, { ErrorInfo, ReactNode } from 'react';
 
-interface Props {
-  children: ReactNode;
+interface ErrorBoundaryProps {
+  children?: ReactNode;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   incidentId?: string;
   recoveryAttempts: number;
@@ -15,25 +15,22 @@ interface State {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-// Fix: Explicitly extending React.Component ensures setState, props, and other lifecycle methods are correctly inherited from the React namespace
-export class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
-  public state: State = {
+  public state: ErrorBoundaryState = {
     hasError: false,
     recoveryAttempts: 0
   };
 
-  /**
-   * Génère un identifiant d'incident court et lisible pour le support technique.
-   */
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+  }
+
   private generateIncidentId(): string {
     return Math.random().toString(36).substring(2, 10).toUpperCase();
   }
 
-  /**
-   * Masque les informations potentiellement sensibles dans les messages d'erreur.
-   */
   private sanitizeErrorMessage(message: string): string {
     const sensitiveKeywords = ['password', 'token', 'key', 'auth', 'secret', 'bearer', 'cookie'];
     let sanitized = message;
@@ -44,9 +41,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return sanitized;
   }
 
-  /**
-   * Détermine si une erreur est récupérable (ex: erreur réseau temporaire).
-   */
   private isRecoverable(error: Error): boolean {
     const message = error.message.toLowerCase();
     return (
@@ -57,30 +51,27 @@ export class ErrorBoundary extends React.Component<Props, State> {
     );
   }
 
-  public static getDerivedStateFromError(_: Error): Partial<State> {
+  public static getDerivedStateFromError(_: Error): Partial<ErrorBoundaryState> {
     return { hasError: true };
   }
 
-  // Fix: setState is correctly inherited from the React.Component base class
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const incidentId = this.generateIncidentId();
     const sanitizedMessage = this.sanitizeErrorMessage(error.message);
     
-    // Journalisation structurée pour les outils de supervision (ex: Sentry, ELK)
+    // Journalisation structurée pour les outils de supervision
     const report = {
       incidentId,
       timestamp: new Date().toISOString(),
       errorType: error.name,
       message: sanitizedMessage,
       stack: errorInfo.componentStack,
-      environment: process.env.NODE_ENV,
       url: window.location.href
     };
 
-    // Simulation de l'envoi vers un service de log centralisé SNCB
-    console.error(`[AUDIT] Incident ${incidentId} rapporté au SIEM:`, report);
+    // FIX: Stringify report to avoid [object Object] in text-based loggers or consoles
+    console.error(`[AUDIT] Incident ${incidentId} rapporté au SIEM:\n${JSON.stringify(report, null, 2)}`);
 
-    // Tentative de récupération automatique pour les erreurs transitoires
     if (this.isRecoverable(error) && this.state.recoveryAttempts < this.MAX_RECOVERY_ATTEMPTS) {
       this.setState(prevState => ({
         incidentId,
@@ -95,7 +86,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
     }
   }
 
-  // Fix: setState is a built-in method provided by React.Component inheritance
   private handleManualRetry = () => {
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
@@ -103,7 +93,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      // Si nous sommes en cours de tentative de récupération automatique
       if (this.state.recoveryAttempts > 0 && this.state.recoveryAttempts <= this.MAX_RECOVERY_ATTEMPTS) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
@@ -117,7 +106,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
         );
       }
 
-      // Écran d'erreur critique (Fallback UI)
       return (
         <div 
           className="min-h-screen flex items-center justify-center bg-slate-100 p-6"
@@ -151,17 +139,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 >
                   REDÉMARRER L'APPLICATION
                 </button>
-                <button
-                  onClick={() => window.print()}
-                  className="w-full text-blue-600 text-xs font-bold hover:underline"
-                >
-                  Imprimer le rapport pour le support
-                </button>
               </div>
             </div>
             
             <div className="bg-gray-50 p-4 border-t text-[9px] text-gray-400 font-bold uppercase tracking-tighter flex justify-between">
-              <span>SNCB ACT SWAP v2.0</span>
+              <span>SNCB ACT SWAP v2.5</span>
               <span>© {new Date().getFullYear()} DSI-FER</span>
             </div>
           </div>
@@ -169,7 +151,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Fix: Access props correctly as inherited from React.Component
     return this.props.children;
   }
 }

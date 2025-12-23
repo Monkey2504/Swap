@@ -1,129 +1,172 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from './context/AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import ProfilePage from './pages/ProfilePage';
 import PreferencesPage from './pages/PreferencesPage';
 import SwapBoard from './pages/SwapBoard';
+import AdminConsole from './pages/AdminConsole';
 import LoginPage from './pages/LoginPage';
-import { supabase, isSupabaseConfigured } from './lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import { getSupabase, isSupabaseConfigured } from './lib/supabase';
+import { Session, User } from '@supabase/supabase-js';
+import { authService } from './lib/api/authService';
+import { useDuties } from './hooks/useDuties';
 
-type AppPage = 'login' | 'profile' | 'preferences' | 'swaps';
+type AppPage = 'login' | 'profile' | 'preferences' | 'swaps' | 'admin';
 
 const App: React.FC = () => {
-  const { user, preferences, setPreferences, setUser, logout, error, setError, successMessage, setSuccessMessage, logAction } = useApp();
+  const { 
+    user, 
+    logout, 
+    error, 
+    setError, 
+    successMessage, 
+    setSuccessMessage, 
+    isSaving,
+    clearMessages,
+    loadUserProfile
+  } = useApp();
+  
   const [currentPage, setCurrentPage] = useState<AppPage>('login');
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const { duties, loading: dutiesLoading, refreshDuties } = useDuties(user?.id);
 
-  const handleLoginSuccess = useCallback((supabaseUser: any) => {
-    logAction('USER_LOGIN', { method: 'Supabase' });
-    setUser({
-      id: supabaseUser.id || 'local-demo',
-      sncbId: supabaseUser.user_metadata?.sncbId || '00000000',
-      firstName: supabaseUser.user_metadata?.firstName || 'Agent',
-      lastName: supabaseUser.user_metadata?.lastName || 'SNCB',
-      email: supabaseUser.email || '',
-      phone: '',
-      depot: 'Bruxelles-Midi',
-      series: '',
-      position: '',
-      isFloating: false,
-      currentDuties: []
-    });
-    setCurrentPage('profile');
-  }, [setUser, logAction]);
+  const handleNavigation = useCallback((page: AppPage) => {
+    localStorage.setItem('swapact_last_page', page);
+    setCurrentPage(page);
+    clearMessages();
+  }, [clearMessages]);
 
-  const handleLocalLogin = () => {
-    const demoSession = { user: { id: 'local-demo', email: 'demo@sncb.be' } } as Session;
-    setSession(demoSession);
-    handleLoginSuccess(demoSession.user);
+  const handleLoginSuccess = useCallback(async (supabaseUser: User) => {
+    try {
+      await loadUserProfile(supabaseUser.id, supabaseUser);
+      const lastPage = localStorage.getItem('swapact_last_page') as AppPage;
+      setCurrentPage((lastPage && lastPage !== 'login') ? lastPage : 'profile');
+      refreshDuties();
+    } catch (err) {
+      setError('Session expirée.');
+    }
+  }, [loadUserProfile, setError, refreshDuties]);
+
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      await logout();
+      setCurrentPage('login');
+    } catch (err) {
+      setError('Erreur déconnexion');
+    }
   };
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setIsLoading(false);
-      return;
+    const initialize = async () => {
+      const supabase = getSupabase();
+      if (!isSupabaseConfigured() || !supabase) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        setSession(currentSession);
+        if (currentSession?.user) await handleLoginSuccess(currentSession.user);
+      } catch (err) {
+        setError('Accès Cloud SNCB impossible.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initialize();
+  }, [handleLoginSuccess, setError]);
+
+  const NavItems = [
+    { page: 'profile' as const, icon: '👤', label: 'Profil' },
+    { page: 'preferences' as const, icon: '⚖️', label: 'Goûts' },
+    { page: 'swaps' as const, icon: '🔄', label: 'Bourse' },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <div className="w-12 h-12 border-[6px] border-sncb-blue/10 border-t-sncb-blue rounded-full animate-spin"></div>
+        <p className="mt-10 text-slate-300 font-black uppercase tracking-[0.5em] text-[10px]">Liaison Sécurisée</p>
+      </div>
+    );
+  }
+
+  const renderPage = () => {
+    if (!session) return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    switch (currentPage) {
+      case 'profile': return <ProfilePage onNext={() => handleNavigation('preferences')} duties={duties} dutiesLoading={dutiesLoading} />;
+      case 'preferences': return <PreferencesPage preferences={useApp().preferences} setPreferences={(p: any) => useApp().setPreferences(p)} onNext={() => handleNavigation('swaps')} />;
+      case 'swaps': return user ? <SwapBoard user={user} preferences={useApp().preferences} onRefreshDuties={refreshDuties} /> : null;
+      case 'admin': return <AdminConsole />;
+      default: return <ProfilePage onNext={() => handleNavigation('preferences')} duties={duties} dutiesLoading={dutiesLoading} />;
     }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) handleLoginSuccess(session.user);
-      setIsLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) handleLoginSuccess(session.user);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [handleLoginSuccess]);
-
-  const handleLogout = async () => {
-    await logout();
-    setSession(null);
-    setCurrentPage('login');
   };
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-sncb-blue">
-      <div className="w-16 h-16 border-4 border-sncb-yellow border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      {/* Barre d'erreur */}
-      {error && (
-        <div className="bg-red-600 text-white py-3 px-6 text-xs font-black flex justify-between items-center animate-slide-up sticky top-0 z-[100] shadow-xl uppercase tracking-widest">
-          <p className="flex items-center"><span className="text-lg mr-2">⚠️</span> {error}</p>
-          <button onClick={() => setError(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition">✕</button>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-[#f1f5f9] flex flex-col font-inter">
+        {/* Notifications Flottantes */}
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-8 pointer-events-none">
+          {error && <div className="bg-red-600 text-white p-6 rounded-[32px] shadow-2xl animate-scaleUp pointer-events-auto flex justify-between font-black text-xs"><span>⚠️ {error}</span><button onClick={() => setError(null)}>✕</button></div>}
+          {successMessage && <div className="bg-emerald-600 text-white p-6 rounded-[32px] shadow-2xl animate-scaleUp pointer-events-auto flex justify-between font-black text-xs"><span>✅ {successMessage}</span><button onClick={() => setSuccessMessage(null)}>✕</button></div>}
         </div>
-      )}
 
-      {/* Barre de succès */}
-      {successMessage && (
-        <div className="bg-green-500 text-white py-4 px-6 text-[10px] font-black flex justify-between items-center animate-slide-up sticky top-0 z-[100] shadow-2xl uppercase tracking-[0.2em]">
-          <p className="flex items-center"><span className="text-xl mr-3">✅</span> {successMessage}</p>
-          <button onClick={() => setSuccessMessage(null)} className="bg-black/10 hover:bg-black/20 p-2 rounded-full transition">✕</button>
-        </div>
-      )}
-
-      {session && (
-        <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40 h-20 flex items-center">
-          <div className="max-w-7xl mx-auto px-6 w-full flex justify-between items-center">
-            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setCurrentPage('profile')}>
-              <div className="w-10 h-10 bg-sncb-blue rounded-xl flex items-center justify-center text-sncb-yellow font-black text-xl shadow-lg transform -rotate-2">S</div>
-              <span className="font-black text-2xl text-sncb-blue tracking-tighter uppercase">Swap<span className="text-yellow-500">ACT</span></span>
-            </div>
-            <div className="hidden md:flex items-center space-x-2">
-              <button onClick={() => setCurrentPage('profile')} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition ${currentPage === 'profile' ? 'bg-sncb-blue text-white shadow-md' : 'text-gray-400 hover:text-sncb-blue hover:bg-gray-50'}`}>Profil</button>
-              <button onClick={() => setCurrentPage('preferences')} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition ${currentPage === 'preferences' ? 'bg-sncb-blue text-white shadow-md' : 'text-gray-400 hover:text-sncb-blue hover:bg-gray-50'}`}>Préférences</button>
-              <button onClick={() => setCurrentPage('swaps')} className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition ${currentPage === 'swaps' ? 'bg-sncb-blue text-white shadow-md' : 'text-gray-400 hover:text-sncb-blue hover:bg-gray-50'}`}>Tableau</button>
-              <div className="w-px h-8 bg-gray-200 mx-2"></div>
-              <button onClick={handleLogout} className="text-red-600 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 px-4 py-2 rounded-xl transition">Quitter</button>
-            </div>
-          </div>
-        </nav>
-      )}
-
-      <main className="flex-grow">
-        {!session ? (
-          <LoginPage onLocalLogin={handleLocalLogin} />
-        ) : (
-          <div className="container mx-auto py-8 px-4">
-            {currentPage === 'profile' && <ProfilePage onNext={() => setCurrentPage('preferences')} />}
-            {currentPage === 'preferences' && <PreferencesPage preferences={preferences} setPreferences={setPreferences} onNext={() => setCurrentPage('swaps')} />}
-            {currentPage === 'swaps' && user && <SwapBoard user={user} preferences={preferences} />}
+        {/* Top Header App (Épuré) */}
+        {session && (
+          <div className="px-10 pt-10 pb-4 flex justify-between items-center bg-transparent">
+             <div className="flex items-center gap-4">
+               <div className="w-10 h-10 bg-sncb-blue rounded-2xl flex items-center justify-center text-white text-xs font-black shadow-xl">B</div>
+               <span className="font-black text-sm uppercase tracking-widest italic">Swap<span className="text-sncb-blue">Act</span></span>
+             </div>
+             {isSaving && (
+               <div className="flex items-center gap-3 bg-white/50 backdrop-blur px-4 py-2 rounded-full border border-white">
+                 <div className="w-2 h-2 bg-sncb-blue rounded-full animate-pulse"></div>
+                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Sync Cloud</span>
+               </div>
+             )}
           </div>
         )}
-      </main>
-      
-      <footer className="bg-white border-t border-gray-100 py-6 text-center text-gray-400 text-[9px] font-black uppercase tracking-[0.2em]">
-        Sécurisé par SNCB Cybersecurity • © {new Date().getFullYear()} • ACT SWAP v2.1-SECURE
-      </footer>
-    </div>
+
+        <main className={`flex-grow ${session ? 'pb-36' : ''}`}>
+          {renderPage()}
+        </main>
+
+        {/* Bottom Navigation (Style SNCB E500) */}
+        {session && (
+          <nav className="fixed bottom-0 left-0 right-0 z-50 px-8 pb-10">
+            <div className="nav-blur border border-white h-24 rounded-[48px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.15)] flex justify-around items-center px-4">
+              {NavItems.map(({ page, icon, label }) => (
+                <button
+                  key={page}
+                  onClick={() => handleNavigation(page)}
+                  className={`flex flex-col items-center gap-2 transition-all duration-500 transform ${currentPage === page ? 'text-sncb-blue scale-110 -translate-y-2' : 'text-slate-300'}`}
+                >
+                  <span className="text-3xl filter drop-shadow-sm">{icon}</span>
+                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${currentPage === page ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>{label}</span>
+                  {currentPage === page && <div className="w-1.5 h-1.5 bg-sncb-blue rounded-full animate-pulse"></div>}
+                </button>
+              ))}
+              
+              <div className="w-px h-10 bg-slate-200/50 mx-2"></div>
+              
+              {user?.role === 'admin' && (
+                <button onClick={() => handleNavigation('admin')} className={`flex flex-col items-center gap-2 transform transition-transform ${currentPage === 'admin' ? 'text-slate-900 scale-110 -translate-y-2' : 'text-slate-300'}`}>
+                  <span className="text-3xl">🛠️</span>
+                </button>
+              )}
+              
+              <button onClick={handleLogout} className="flex flex-col items-center gap-2 text-slate-300 hover:text-red-500 transition-colors">
+                <span className="text-3xl">📤</span>
+              </button>
+            </div>
+          </nav>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 };
 

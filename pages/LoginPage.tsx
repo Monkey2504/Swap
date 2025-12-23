@@ -1,160 +1,132 @@
 
 import React, { useState } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
+import { getSupabase, getSupabaseConfig } from '../lib/supabase';
 
 interface LoginPageProps {
-  onLocalLogin: () => void;
+  onLoginSuccess?: (user: User) => Promise<void>;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLocalLogin }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
-
-  // Fix: Removed Gemini API key status tracking from UI as it should be handled exclusively via environment variables
-  const isReadyForProd = isSupabaseConfigured;
+  const [showSettings, setShowSettings] = useState(false);
+  
+  const config = getSupabaseConfig();
+  const [tempUrl, setTempUrl] = useState(config.url);
+  const [tempKey, setTempKey] = useState(config.key);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured || !supabase) {
-      alert("Erreur : Les variables SUPABASE_URL ou SUPABASE_ANON_KEY sont manquantes.");
-      return;
-    }
+    const supabase = getSupabase();
+    if (!supabase) return;
 
     setLoading(true);
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              sncbId: email.split('@')[0],
-              firstName: 'Agent',
-              lastName: 'SNCB'
-            }
-          }
-        });
-        if (error) throw error;
-        alert("Succès ! Vérifiez votre email professionnel pour confirmer l'inscription.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
+      const { data, error } = isSignUp 
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) throw error;
+      if (data.user && onLoginSuccess) await onLoginSuccess(data.user);
     } catch (error: any) {
-      alert(error.message);
+      alert("Accès refusé : " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const saveConfig = () => {
+    localStorage.setItem('sncb_supabase_url', tempUrl.trim());
+    localStorage.setItem('sncb_supabase_key', tempKey.trim());
+    window.location.reload();
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#003399] to-[#001133] p-4 font-inter">
-      <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md p-10 border border-white/20 relative overflow-hidden">
-        {/* Décoration SNCB */}
-        <div className="absolute top-0 left-0 w-full h-2 bg-sncb-yellow"></div>
-        
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-sncb-yellow rounded-2xl flex items-center justify-center text-sncb-blue text-3xl font-black mx-auto mb-4 shadow-lg transform -rotate-3">
-            S
-          </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tighter italic uppercase">Swap<span className="text-sncb-blue">ACT</span></h1>
-          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">SNCB Service Exchange Platform</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-6 font-inter relative overflow-hidden">
+      {/* Background subtil */}
+      <div className="absolute top-[-10%] left-[-5%] w-[40%] aspect-square bg-sncb-blue/5 rounded-full blur-[100px]"></div>
+      <div className="absolute bottom-[-10%] right-[-5%] w-[40%] aspect-square bg-sncb-yellow/10 rounded-full blur-[100px]"></div>
 
-        {/* Panneau de Diagnostic Dynamique */}
-        <div className="mb-8 bg-slate-50 rounded-3xl p-5 border border-slate-100">
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Assistant de Connexion</p>
-            <button 
-              onClick={() => setShowGuide(!showGuide)}
-              className="text-[9px] font-black text-sncb-blue uppercase underline"
-            >
-              {showGuide ? "Fermer" : "Aide configuration"}
-            </button>
+      <div className="w-full max-w-[450px] z-10">
+        <div className="bg-white rounded-[56px] shadow-[0_30px_60px_-15px_rgba(0,51,153,0.1)] p-12 border border-white animate-fadeIn">
+          <div className="text-center mb-12">
+            <div className="w-24 h-24 bg-sncb-blue rounded-[36px] flex items-center justify-center text-white mx-auto mb-8 shadow-2xl transform rotate-3 hover:rotate-0 transition-all duration-500">
+              <span className="text-5xl font-black italic">B</span>
+            </div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">
+              SWAP<span className="text-sncb-blue">ACT</span>
+            </h1>
+            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.5em] mt-4 opacity-60 italic">Plateforme Collaborative</p>
           </div>
 
-          {showGuide ? (
-            <div className="space-y-3 mb-2 animate-fadeIn">
-              <div className="bg-white p-3 rounded-xl border border-blue-100">
-                <p className="text-[10px] font-bold text-slate-700">Pour relier votre compte :</p>
-                <ul className="text-[9px] text-slate-500 mt-2 space-y-1 font-mono">
-                  {/* Fix: Removed API_KEY configuration hints to follow GenAI security requirements */}
-                  <li>• SUPABASE_URL = (L'URL de votre projet)</li>
-                  <li>• SUPABASE_ANON_KEY = (Clé publique anon)</li>
-                </ul>
+          {showSettings ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Serveur Cloud</label>
+                  <input type="text" className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-mono" value={tempUrl} onChange={e => setTempUrl(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Clé Publique</label>
+                  <textarea rows={3} className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-mono break-all" value={tempKey} onChange={e => setTempKey(e.target.value)} />
+                </div>
+                <button onClick={saveConfig} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Mettre à jour</button>
+                <button onClick={() => setShowSettings(false)} className="w-full text-[10px] font-black text-slate-400 uppercase py-2">Retour à la connexion</button>
               </div>
             </div>
           ) : (
-            <div className="flex justify-center">
-              <div className={`flex flex-col items-center justify-center p-3 w-full rounded-2xl border transition-all ${isSupabaseConfigured ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
-                <span className="text-sm mb-1">{isSupabaseConfigured ? '✅' : '❌'}</span>
-                <span className={`text-[8px] font-black uppercase ${isSupabaseConfigured ? 'text-green-700' : 'text-red-700'}`}>Base de données</span>
+            <form onSubmit={handleAuth} className="space-y-8">
+              <div className="space-y-4">
+                <input
+                  type="email"
+                  placeholder="nom@sncb.be"
+                  className="w-full px-8 py-5 rounded-[30px] bg-slate-50 border-2 border-transparent focus:border-sncb-blue/20 focus:bg-white outline-none font-bold text-sm transition-all shadow-inner"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder="Mot de passe"
+                  className="w-full px-8 py-5 rounded-[30px] bg-slate-50 border-2 border-transparent focus:border-sncb-blue/20 focus:bg-white outline-none font-bold text-sm transition-all shadow-inner"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
-            </div>
+              
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full font-black py-6 rounded-[32px] shadow-2xl text-[12px] uppercase tracking-[0.3em] transition-all transform sncb-button-volume ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {loading ? 'Connexion...' : isSignUp ? "S'enregistrer" : "Entrer dans l'app"}
+              </button>
+              
+              <div className="flex flex-col items-center gap-6 pt-4">
+                <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="text-[11px] font-black text-sncb-blue uppercase tracking-widest hover:underline underline-offset-8 decoration-2">
+                  {isSignUp ? "J'ai déjà mon accès" : "Première connexion ?"}
+                </button>
+                
+                {email === 'admin@admin' && (
+                  <div className="px-5 py-2 bg-amber-50 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse border border-amber-100">
+                    Console Superviseur
+                  </div>
+                )}
+
+                <div 
+                  onDoubleClick={() => setShowSettings(true)}
+                  className="w-2 h-2 bg-slate-100 rounded-full cursor-pointer hover:bg-slate-300 transition-colors"
+                ></div>
+              </div>
+            </form>
           )}
-          
-          {isReadyForProd && (
-            <div className="mt-4 flex items-center justify-center space-x-2 animate-pulse">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-              <p className="text-[9px] font-black text-green-600 uppercase tracking-widest">Système Opérationnel</p>
-            </div>
-          )}
         </div>
-
-        <form onSubmit={handleAuth} className="space-y-4">
-          <input
-            type="email"
-            placeholder="E-mail professionnel (SNCB)"
-            className="w-full px-6 py-4 rounded-2xl border-2 border-slate-50 bg-slate-50 focus:bg-white focus:border-sncb-blue outline-none font-bold text-slate-700 transition-all text-sm"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Mot de passe sécurisé"
-            className="w-full px-6 py-4 rounded-2xl border-2 border-slate-50 bg-slate-50 focus:bg-white focus:border-sncb-blue outline-none font-bold text-slate-700 transition-all text-sm"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          <button
-            type="submit"
-            disabled={loading || !isSupabaseConfigured}
-            className={`w-full font-black py-5 rounded-2xl transition-all shadow-xl transform active:scale-95 text-sm uppercase tracking-widest ${
-              loading || !isSupabaseConfigured 
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                : 'bg-sncb-blue hover:bg-slate-900 text-white shadow-sncb-blue/20'
-            }`}
-          >
-            {loading ? 'Traitement...' : isSignUp ? "Créer mon compte" : "Se connecter"}
-          </button>
-        </form>
-
-        <div className="text-center mt-6">
-          <button 
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-[10px] font-black text-sncb-blue uppercase tracking-widest hover:underline"
-          >
-            {isSignUp ? "Déjà un compte ? Connexion" : "Nouvel utilisateur ? S'inscrire"}
-          </button>
-        </div>
-
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-          <div className="relative flex justify-center text-[9px] uppercase"><span className="bg-white px-4 text-slate-300 font-black tracking-[0.3em]">Ou</span></div>
-        </div>
-
-        <button
-          onClick={onLocalLogin}
-          className="w-full bg-sncb-yellow hover:bg-[#ffe033] text-sncb-blue font-black py-4 rounded-2xl transition-all shadow-lg transform active:scale-95 flex items-center justify-center space-x-2 text-xs uppercase tracking-widest"
-        >
-          <span>🚀 Mode Démo Immédiat</span>
-        </button>
+        
+        <p className="text-center mt-12 text-slate-400 text-[9px] font-black uppercase tracking-[0.5em] opacity-40">SNCB DSI • Version 2.5</p>
       </div>
     </div>
   );

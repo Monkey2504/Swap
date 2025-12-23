@@ -1,28 +1,26 @@
 
+import { User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from 'react';
-import { UserProfile, UserPreference, Duty, SwapOffer } from '../types';
-import { INITIAL_PREFERENCES, generateId } from '../constants';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { UserProfile, UserPreference, Duty } from '../types';
+import { INITIAL_PREFERENCES, DEPOTS } from '../constants';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { profileService, swapService, authService, preferencesService } from '../lib/api';
 
-export type AuditAction = 'USER_LOGIN' | 'USER_LOGOUT' | 'PROFILE_UPDATE' | 'PREFERENCE_UPDATE' | 'SESSION_TIMEOUT' | 'SECURITY_VIOLATION' | 'DATA_ACCESS' | 'SWAP_PUBLISH';
-
-interface AuditEntry {
-  incidentId: string;
+interface TechLog {
   timestamp: string;
-  userId: string;
-  action: AuditAction;
-  severity: 'INFO' | 'WARNING' | 'CRITICAL';
-  details: string;
+  message: string;
+  type: 'error' | 'info' | 'warn';
+  source?: string;
 }
 
 interface AppContextType {
   user: UserProfile | null;
-  setUser: (user: UserProfile | null) => void;
+  setUser: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   preferences: UserPreference[];
-  setPreferences: (prefs: UserPreference[]) => void;
+  setPreferences: React.Dispatch<React.SetStateAction<UserPreference[]>>;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   saveProfileToDB: () => Promise<void>;
-  publishDutyForSwap: (dutyId: string) => Promise<void>;
+  publishDutyForSwap: (duty: Duty, isUrgent?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   error: string | null;
   setError: (msg: string | null) => void;
@@ -31,8 +29,10 @@ interface AppContextType {
   isSaving: boolean;
   rgpdConsent: boolean;
   setRgpdConsent: (v: boolean) => void;
-  logAction: (action: AuditAction, details: any, severity?: AuditEntry['severity']) => void;
-  sessionExpired: boolean;
+  loadUserProfile: (userId: string, authUser?: User) => Promise<void>;
+  clearMessages: () => void;
+  techLogs: TechLog[];
+  addTechLog: (msg: string, type?: 'error' | 'info' | 'warn', source?: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -43,108 +43,141 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const [rgpdConsent, setRgpdConsent] = useState(() => localStorage.getItem('sncb_rgpd_consent') === 'true');
+  const [rgpdConsent, setRgpdConsent] = useState(false);
+  const [techLogs, setTechLogs] = useState<TechLog[]>([]);
   
-  const logAction = useCallback((action: AuditAction, details: any, severity: AuditEntry['severity'] = 'INFO') => {
-    const incidentId = Math.random().toString(36).substring(2, 15).toUpperCase();
-    const entry = {
-      incidentId,
+  const lastSavedUser = useRef<string | null>(null);
+
+  const addTechLog = useCallback((message: string, type: 'error' | 'info' | 'warn' = 'info', source?: string) => {
+    const log: TechLog = {
       timestamp: new Date().toISOString(),
-      userId: user?.sncbId || 'anonymous',
-      action,
-      severity,
-      details: typeof details === 'string' ? details : JSON.stringify(details)
+      message,
+      type,
+      source
     };
-    console.info(`[SIEM] ${action}`, entry);
-  }, [user]);
-
-  const logout = useCallback(async () => {
-    if (isSupabaseConfigured && supabase) await supabase.auth.signOut();
-    setUser(null);
-    setPreferences(INITIAL_PREFERENCES);
+    setTechLogs(prev => [log, ...prev].slice(0, 100));
+    if (type === 'error') {
+      console.error(`[TECH_LOG][${source || 'APP'}] ${message}`);
+    }
   }, []);
 
-  const updateUserProfile = useCallback((updates: Partial<UserProfile>) => {
-    setUser(prev => prev ? { ...prev, ...updates } : null);
-  }, []);
+  const loadUserProfile = useCallback(async (userId: string, authUser?: User) => {
+    if (!isSupabaseConfigured()) return;
+    setIsSaving(true);
+    try {
+      addTechLog(`Initialisation profil ${userId}`, 'info', 'Auth');
+      const data = await profileService.getOrCreateProfile({
+        id: userId,
+        email: authUser?.email,
+        metadata: authUser?.user_metadata
+      });
 
-  // Publier un service
-  const publishDutyForSwap = async (dutyId: string) => {
-    if (!user) return;
-    const duty = user.currentDuties.find(d => d.id === dutyId);
-    if (!duty) return;
+      const profile: UserProfile = {
+        id: userId,
+        sncbId: data.sncb_id || 'ID_PENDING',
+        firstName: data.first_name || 'Agent',
+        lastName: data.last_name || 'SNCB',
+        email: authUser?.email || data.email || '',
+        depot: data.depot || DEPOTS[0],
+        series: data.series || '',
+        position: data.position || '',
+        isFloating: data.is_floating || false,
+        currentDuties: data.current_duties || [],
+        rgpdConsent: data.rgpd_consent || false,
+        role: data.role || 'Chef de train'
+      };
+      
+      setUser(profile);
+      setRgpdConsent(profile.rgpdConsent);
+      
+      if (data.preferences && Array.isArray(data.preferences)) {
+        setPreferences(data.preferences);
+      }
+      
+      lastSavedUser.current = JSON.stringify({ ...profile, preferences: data.preferences });
+      addTechLog(`Session active pour ${profile.firstName}`, 'info', 'Profile');
+    } catch (err: any) {
+      // On ne bloque plus l'utilisateur si c'est juste une erreur de lecture Cloud
+      console.warn("Erreur mineure chargement profil:", err);
+      addTechLog(`Avertissement Cloud: ${err.message}`, 'warn', 'Supabase');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [addTechLog]);
+
+  const saveProfileToDB = useCallback(async () => {
+    if (!user || !isSupabaseConfigured()) return;
+    
+    const currentState = JSON.stringify({ ...user, preferences, rgpdConsent });
+    if (lastSavedUser.current === currentState) return;
 
     setIsSaving(true);
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { error: dbError } = await supabase.from('swap_offers').insert({
-          user_id: user.id,
-          user_sncb_id: user.sncbId,
-          user_name: `${user.firstName} ${user.lastName}`,
-          depot: user.depot,
-          duty_data: duty,
-          status: 'active'
-        });
-        if (dbError) throw dbError;
-      }
-      
-      logAction('SWAP_PUBLISH', { dutyCode: duty.code });
-      setSuccessMessage(`Service ${duty.code} publié avec succès ! Vos collègues de ${user.depot} ont été notifiés.`);
+      await profileService.updateProfile(user.id, {
+        sncb_id: user.sncbId,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        depot: user.depot,
+        series: user.series,
+        position: user.position,
+        preferences: preferences,
+        current_duties: user.currentDuties,
+        rgpd_consent: rgpdConsent,
+        is_floating: user.isFloating
+      });
+      lastSavedUser.current = currentState;
     } catch (err: any) {
-      console.error(err);
-      setError("Erreur lors de la publication. Vérifiez la structure de votre table Supabase.");
+      addTechLog(`Échec sync: ${err.message}`, 'warn', 'Sync');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [user, preferences, rgpdConsent, addTechLog]);
+
+  useEffect(() => {
+    if (user) {
+      const timer = setTimeout(saveProfileToDB, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, preferences, rgpdConsent, saveProfileToDB]);
+
+  const logout = useCallback(async () => {
+    addTechLog('Déconnexion', 'info', 'Auth');
+    setUser(null);
+    setPreferences(INITIAL_PREFERENCES);
+    setRgpdConsent(false);
+    lastSavedUser.current = null;
+  }, [addTechLog]);
+
+  const updateUserProfile = useCallback((updates: Partial<UserProfile>) => {
+    setUser(prev => prev ? { ...prev, ...updates } : null);
+    if (updates.rgpdConsent !== undefined) setRgpdConsent(updates.rgpdConsent);
+  }, []);
+
+  const publishDutyForSwap = async (duty: Duty, isUrgent: boolean = false) => {
+    if (!user || !isSupabaseConfigured()) return;
+    setIsSaving(true);
+    try {
+      await swapService.publishForSwap(user, duty, isUrgent);
+      setSuccessMessage(`Service ${duty.code} publié !`);
+    } catch (err: any) {
+      setError(`Erreur: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const saveProfileToDB = useCallback(async () => {
-    if (!user || !isSupabaseConfigured || !supabase) return;
-    try {
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        sncb_id: user.sncbId,
-        first_name: user.firstName,
-        last_name: user.lastName,
-        depot: user.depot,
-        series: user.series
-      });
-    } catch (err) {
-      console.error("SaveProfile Error:", err);
-    }
-  }, [user]);
-
-  // Sauvegarde auto des préférences
-  useEffect(() => {
-    if (user && isSupabaseConfigured && supabase) {
-      const savePrefs = async () => {
-        await supabase.from('profiles').update({ 
-          // On assume une colonne metadata ou preferences_json existe
-          // Sinon on stocke juste en local pour l'instant
-        }).eq('id', user.id);
-      };
-      savePrefs();
-    }
-  }, [preferences, user]);
-
-  useEffect(() => {
-    localStorage.setItem('sncb_rgpd_consent', rgpdConsent.toString());
-  }, [rgpdConsent]);
-
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [successMessage]);
+  const clearMessages = useCallback(() => {
+    setError(null);
+    setSuccessMessage(null);
+  }, []);
 
   return (
     <AppContext.Provider value={{ 
       user, setUser, preferences, setPreferences, 
       updateUserProfile, saveProfileToDB, publishDutyForSwap, logout,
-      error, setError, successMessage, setSuccessMessage, isSaving, rgpdConsent, setRgpdConsent,
-      logAction, sessionExpired 
+      error, setError, successMessage, setSuccessMessage, isSaving, 
+      rgpdConsent, setRgpdConsent, loadUserProfile, clearMessages,
+      techLogs, addTechLog
     }}>
       {children}
     </AppContext.Provider>
