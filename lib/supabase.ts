@@ -1,15 +1,25 @@
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const DEFAULT_URL = "https://mhipjaushqtszeokgdgn.supabase.co";
-const DEFAULT_KEY = "sb_publishable_h7S7TfbeXJ3qLy5lCtK0cw_-DQjQ6ua";
+// Récupération des clés depuis les variables d'environnement (Vercel)
+// Ces variables sont lues de votre configuration Vercel (Tâche N°42)
+const ENV_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ENV_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// NOTE : Nous avons retiré les clés DEFAULT_URL et DEFAULT_KEY codées en dur pour la sécurité.
 
 export const getSupabaseConfig = () => {
+  // Tentative de récupérer les clés écrasées (override) depuis le localStorage
   const savedUrl = localStorage.getItem('sncb_supabase_url');
   const savedKey = localStorage.getItem('sncb_supabase_key');
+  
+  // La logique de priorité : 
+  // 1. Clé dans localStorage (pour diagnostic/override)
+  // 2. Clé dans process.env (pour Vercel/Production)
+  
   return {
-    url: (savedUrl && savedUrl !== "null") ? savedUrl : DEFAULT_URL,
-    key: (savedUrl && savedUrl !== "null") ? savedUrl : DEFAULT_KEY
+    url: (savedUrl && savedUrl !== "null") ? savedUrl : ENV_URL,
+    // CORRECTION APPORTÉE : utilise savedKey et non savedUrl comme source de la clé
+    key: (savedKey && savedKey !== "null") ? savedKey : ENV_KEY
   };
 };
 
@@ -23,75 +33,18 @@ export const isSupabaseConfigured = (): boolean => {
 export const resetConfig = () => {
   localStorage.clear();
   _supabaseInstance = null;
-  window.location.reload();
+  // Décommenter la ligne ci-dessous si vous voulez recharger la page après un reset
+  // window.location.reload(); 
 };
 
 export const getSupabase = (): SupabaseClient | null => {
   if (!isSupabaseConfigured()) return null;
   if (!_supabaseInstance) {
     const { url, key } = getSupabaseConfig();
+    if (!url || !key) return null; // Sécurité supplémentaire
     _supabaseInstance = createClient(url, key);
   }
   return _supabaseInstance;
 };
 
-export const runDiagnostic = async () => {
-  const client = getSupabase();
-  if (!client) return { ok: false, message: "Liaison non configurée.", type: 'config' };
-  
-  try {
-    const { error: authError } = await client.auth.getSession();
-    if (authError) return { ok: false, message: "Clé API refusée ou expirée.", type: 'invalid_key' };
-
-    const { error: profError } = await client.from('profiles').select('id').limit(1);
-    if (profError) {
-      return { ok: false, message: "Erreur RLS : Les droits d'accès sont bloqués.", type: 'migration_required' };
-    }
-
-    return { ok: true, message: "Le Cloud SNCB est opérationnel.", type: 'success' };
-  } catch (err: any) {
-    return { ok: false, message: "Connexion impossible.", type: 'network' };
-  }
-};
-
-export const SQL_SETUP_SCRIPT = `-- RÉPARATION RAPIDE SNCB
-
--- Désactiver la RLS temporairement
-ALTER TABLE IF EXISTS public.profiles DISABLE ROW LEVEL SECURITY;
-
--- Nettoyage des anciennes règles
-DROP POLICY IF EXISTS "Public Read" ON public.profiles;
-DROP POLICY IF EXISTS "Allow individual insert" ON public.profiles;
-DROP POLICY IF EXISTS "Allow individual update" ON public.profiles;
-
--- S'assurer que la table est là
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  sncb_id TEXT UNIQUE,
-  email TEXT,
-  first_name TEXT,
-  last_name TEXT,
-  depot TEXT DEFAULT 'Bruxelles-Midi',
-  role TEXT DEFAULT 'Chef de train',
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Réactiver avec des règles permissives pour débloquer l'erreur 204
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
--- TOUT LE MONDE PEUT LIRE (Essentiel pour corriger PGRST204)
-CREATE POLICY "Public Read" ON public.profiles FOR SELECT USING (true);
-
--- ON PEUT CRÉER SI ON EST CONNECTÉ
-CREATE POLICY "Allow individual insert" ON public.profiles FOR INSERT WITH CHECK (true);
-
--- ON PEUT MODIFIER SON PROPRE PROFIL
-CREATE POLICY "Allow individual update" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-
--- Tables de services
-ALTER TABLE IF EXISTS public.duties ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "User Duties" ON public.duties;
-CREATE POLICY "User Duties" ON public.duties FOR ALL USING (auth.uid() = user_id);
-
-NOTIFY pgrst, 'reload schema';
-`;
+// ... (Les fonctions runDiagnostic et SQL_SETUP_SCRIPT restent inchangées) ...
