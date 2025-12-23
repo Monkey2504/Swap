@@ -1,5 +1,5 @@
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -15,7 +15,8 @@ interface ErrorBoundaryState {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Explicitly using React.Component ensures TypeScript correctly recognizes setState and props
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
   public state: ErrorBoundaryState = {
@@ -25,6 +26,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    // Fix: Bind handleManualRetry to the class instance to maintain correct 'this' context
+    this.handleManualRetry = this.handleManualRetry.bind(this);
   }
 
   private generateIncidentId(): string {
@@ -73,23 +76,27 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error(`[AUDIT] Incident ${incidentId} rapporté au SIEM:\n${JSON.stringify(report, null, 2)}`);
 
     if (this.isRecoverable(error) && this.state.recoveryAttempts < this.MAX_RECOVERY_ATTEMPTS) {
+      // Fix: Correct usage of setState in a Class Component (addressing line 76 error)
       this.setState(prevState => ({
         incidentId,
         recoveryAttempts: prevState.recoveryAttempts + 1
       }), () => {
         setTimeout(() => {
+          // Fix: Correct usage of setState in a Class Component (addressing line 81 error)
           this.setState({ hasError: false });
         }, 1500);
       });
     } else {
+      // Fix: Correct usage of setState in a Class Component (addressing line 85 error)
       this.setState({ incidentId });
     }
   }
 
-  private handleManualRetry = () => {
+  private handleManualRetry() {
+    // Fix: Correct usage of setState in a Class Component (addressing line 90 error)
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
-  };
+  }
 
   public render() {
     if (this.state.hasError) {
@@ -151,6 +158,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       );
     }
 
+    // Fix: Accessing props is now valid on React.Component (addressing line 154 error)
     return this.props.children;
   }
 }

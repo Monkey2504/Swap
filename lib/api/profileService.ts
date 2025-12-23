@@ -61,24 +61,26 @@ class ProfileService {
       updated_at: new Date().toISOString()
     };
 
+    // Tentative d'insertion
     const { error: insertError } = await client
       .from('profiles')
       .upsert(newProfile, { onConflict: 'id' });
 
     if (insertError) {
-      // On ignore l'erreur 204 car c'est un faux positif de Supabase (la donnée est écrite)
-      if (insertError.code !== 'PGRST204' && insertError.code !== '204') {
-        // Pour les autres erreurs, on renvoie le message en string
-        throw new Error(insertError.message || "Erreur lors de l'initialisation du profil");
+      // On ignore le 204 (No Content) car c'est un bug connu de PostgREST avec RLS
+      if (insertError.code !== 'PGRST204' && String(insertError.code) !== '204') {
+        throw insertError;
       }
     }
 
+    // Boucle d'attente pour la réplication / visibilité RLS
     for (let i = 0; i < 5; i++) {
       await new Promise(r => setTimeout(r, 800)); 
       profile = await this.getProfile(params.id);
       if (profile) return profile;
     }
 
+    // Fallback : renvoyer les données locales si le serveur est lent à indexer
     return { ...newProfile, id: params.id };
   }
 }
