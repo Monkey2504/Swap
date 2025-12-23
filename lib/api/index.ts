@@ -10,33 +10,35 @@ export { preferencesService } from './preferencesService';
  * Empêche l'affichage de [object Object] dans l'interface.
  */
 export const formatError = (err: any): string => {
-  if (!err) return "Erreur inconnue";
+  if (err === null || err === undefined) return "Une erreur inattendue est survenue.";
   
   // Si c'est déjà une string
   if (typeof err === 'string') return err;
   
-  // Gestion des objets Error standards (le plus fréquent)
+  // Si c'est un objet Error standard
   if (err instanceof Error) return err.message;
-  
-  // Gestion spécifique Supabase/PostgREST
+
+  // Gestion spécifique Supabase / PostgREST
+  if (err.error?.message) return String(err.error.message);
   if (err.message && typeof err.message === 'string') return err.message;
   if (err.error_description && typeof err.error_description === 'string') return err.error_description;
   
   // Cas spécifique code d'erreur Supabase
   if (err.code && typeof err.code === 'string') {
-    if (err.code === 'PGRST204') return "Données enregistrées mais pas encore visibles (RLS). Réessayez dans 2 secondes.";
-    if (err.code === '42501') return "Accès refusé (Permissions RLS). Vérifiez votre compte.";
-    return `Erreur ${err.code}: ${err.details || err.message || 'Détails indisponibles'}`;
+    if (err.code === 'PGRST204') return "Données enregistrées mais pas encore propagées sur le réseau (RLS). Réessayez dans 2 secondes.";
+    if (err.code === '42501') return "Accès refusé par le serveur SNCB Cloud (Permissions RLS).";
+    if (err.code === 'invalid_credentials') return "Identifiants SNCB invalides.";
+    return `Erreur technique (${err.code}): ${err.details || err.message || 'Détails indisponibles'}`;
   }
 
-  // Fallback sécurisé : on cherche une propriété 'message' ou on stringify proprement
-  if (err.error && typeof err.error === 'string') return err.error;
-  
+  // Fallback sécurisé : on essaie de trouver une propriété textuelle
+  if (err.statusText) return `Erreur serveur : ${err.statusText}`;
+
   try {
     const stringified = JSON.stringify(err);
-    // Si stringify renvoie un objet vide pour une Error, on utilise String()
-    return stringified === '{}' ? String(err) : stringified;
+    if (stringified === '{}') return String(err);
+    return stringified;
   } catch {
-    return String(err);
+    return "Une erreur technique s'est produite. Contactez le support.";
   }
 };

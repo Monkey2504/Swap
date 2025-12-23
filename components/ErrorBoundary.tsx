@@ -15,7 +15,7 @@ interface ErrorBoundaryState {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-// Fix: Explicitly using React.Component ensures TypeScript correctly recognizes setState and props
+// Explicitly extending React.Component ensures TypeScript correctly recognizes setState, props, and other inherited members.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
@@ -26,7 +26,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Fix: Bind handleManualRetry to the class instance to maintain correct 'this' context
+    // Explicitly bind the manual retry handler to the class instance to maintain correct 'this' context.
     this.handleManualRetry = this.handleManualRetry.bind(this);
   }
 
@@ -62,7 +62,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     const incidentId = this.generateIncidentId();
     const sanitizedMessage = this.sanitizeErrorMessage(error.message);
     
-    // Journalisation structurée pour les outils de supervision
+    // Structured logging for supervision tools.
     const report = {
       incidentId,
       timestamp: new Date().toISOString(),
@@ -72,28 +72,25 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       url: window.location.href
     };
 
-    // FIX: Stringify report to avoid [object Object] in text-based loggers or consoles
     console.error(`[AUDIT] Incident ${incidentId} rapporté au SIEM:\n${JSON.stringify(report, null, 2)}`);
 
     if (this.isRecoverable(error) && this.state.recoveryAttempts < this.MAX_RECOVERY_ATTEMPTS) {
-      // Fix: Correct usage of setState in a Class Component (addressing line 76 error)
+      // Use standard React setState to track recovery attempts and retry automatically.
       this.setState(prevState => ({
         incidentId,
         recoveryAttempts: prevState.recoveryAttempts + 1
       }), () => {
         setTimeout(() => {
-          // Fix: Correct usage of setState in a Class Component (addressing line 81 error)
           this.setState({ hasError: false });
         }, 1500);
       });
     } else {
-      // Fix: Correct usage of setState in a Class Component (addressing line 85 error)
       this.setState({ incidentId });
     }
   }
 
   private handleManualRetry() {
-    // Fix: Correct usage of setState in a Class Component (addressing line 90 error)
+    // Reset error state and reload the application context.
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
   }
@@ -158,7 +155,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
-    // Fix: Accessing props is now valid on React.Component (addressing line 154 error)
+    // Accessing props.children correctly through the class component's context.
     return this.props.children;
   }
 }

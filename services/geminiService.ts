@@ -3,12 +3,13 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { UserPreference, Duty, SwapOffer } from "../types";
 
 const SYSTEM_PROMPT_PARSER = `Vous êtes un expert en planification ferroviaire SNCB. 
-Votre mission est d'extraire les services d'accompagnement (ACT) ou de conduite à partir de documents ou photos.
-RÈGLES :
-- Identifiez les codes de service (ex: 702, 101).
-- Identifiez les lieux via codes télégraphiques (FBMZ = Midi, FNR = Namur).
-- Extrayez précisément les heures de début et de fin.
-- Structurez toujours en JSON valide.`;
+Votre mission est d'extraire les services d'accompagnement (ACT) ou de conduite à partir de documents PDF ou photos de rosters.
+RÈGLES D'EXTRACTION :
+- Identifiez les codes de service (ex: 702, 101, 7401).
+- Identifiez les lieux via codes télégraphiques (FBMZ = Bruxelles-Midi, FNR = Namur, FLG = Liège, FMS = Mons).
+- Extrayez précisément les heures de début (Prise de service) et de fin (Fin de service).
+- Si c'est un PDF, analysez toutes les lignes de planning pour détecter les prestations du jour ou de la semaine.
+- Structurez toujours en JSON valide selon le schéma fourni.`;
 
 const SYSTEM_PROMPT_MATCHER = `Expert en gestion RH SNCB. 
 Évaluez la pertinence d'un échange de service entre deux agents.
@@ -23,7 +24,7 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Data } },
-          { text: "Analyse ce roster SNCB et extrait tous les services détectés avec leurs horaires et arrêts." }
+          { text: "Analyse ce document de planning SNCB (Roster) et extrait tous les services (tours de service) détectés avec leurs codes, horaires et types de train." }
         ]
       },
       config: {
@@ -62,9 +63,10 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
       }
     });
 
-    return JSON.parse(response.text || '{"services": []}').services;
+    const parsed = JSON.parse(response.text || '{"services": []}');
+    return parsed.services || [];
   } catch (error) {
-    console.error("OCR Error:", error);
+    console.error("OCR/Parsing Error:", error);
     return [];
   }
 }
@@ -106,7 +108,7 @@ export async function matchSwaps(preferences: UserPreference[], offers: SwapOffe
       return {
         ...offer,
         matchScore: m?.matchScore || 50,
-        matchReasons: m?.matchReasons || ["Calcul en cours"]
+        matchReasons: m?.matchReasons || ["Analyse heuristique standard"]
       };
     }).sort((a, b) => b.matchScore - a.matchScore);
   } catch (error) {

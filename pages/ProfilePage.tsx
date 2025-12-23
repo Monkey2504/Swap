@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { useDuties } from '../hooks/useDuties';
 import { parseRosterDocument } from '../services/geminiService';
 import { Duty, CreateDutyDTO } from '../types';
+import { formatError } from '../lib/api';
 
 const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading: boolean }> = ({ onNext, duties, dutiesLoading }) => {
   const { user, setRgpdConsent, setError, addTechLog } = useApp();
@@ -14,6 +15,43 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processRosterData = async (base64Data: string, mimeType: string) => {
+    if (!user) return;
+    setIsUploading(true);
+    try {
+      addTechLog(`Lancement de l'analyse OCR (${mimeType}) via Gemini...`, 'info', 'AI');
+      const services = await parseRosterDocument(base64Data, mimeType);
+      
+      if (services && services.length > 0) {
+        let importedCount = 0;
+        for (const s of services) {
+          const newDuty: CreateDutyDTO = {
+            user_id: user.id,
+            code: s.code || "ERR",
+            type: (s.type as any) || 'IC',
+            startTime: s.startTime || "00:00",
+            endTime: s.endTime || "00:00",
+            date: new Date().toISOString().split('T')[0],
+            relations: [],
+            compositions: [],
+            destinations: []
+          };
+          await addDuty(newDuty);
+          importedCount++;
+        }
+        addTechLog(`${importedCount} services importés`, 'info', 'AI');
+        alert(`${importedCount} prestations ajoutées à votre planning.`);
+      } else {
+        setError("Gemini n'a détecté aucun service valide dans ce document.");
+      }
+    } catch (err: any) {
+      setError("Erreur d'importation : " + formatError(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const capturePhoto = async () => {
     if (videoRef.current && canvasRef.current && user) {
@@ -24,44 +62,29 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       canvas.getContext('2d')?.drawImage(video, 0, 0);
       const base64Data = canvas.toDataURL('image/jpeg').split(',')[1];
       
-      setIsUploading(true);
-      try {
-        addTechLog("Lancement de l'analyse OCR Gemini...", 'info', 'AI');
-        const services = await parseRosterDocument(base64Data, 'image/jpeg');
-        
-        if (services && services.length > 0) {
-          let importedCount = 0;
-          
-          for (const s of services) {
-            const newDuty: CreateDutyDTO = {
-              user_id: user.id,
-              code: s.code || "ERR",
-              type: (s.type as any) || 'IC',
-              startTime: s.startTime || "00:00",
-              endTime: s.endTime || "00:00",
-              date: new Date().toISOString().split('T')[0], // Par défaut aujourd'hui
-              relations: [],
-              compositions: [],
-              destinations: []
-            };
-            
-            await addDuty(newDuty);
-            importedCount++;
-          }
-          
-          addTechLog(`${importedCount} services importés via IA`, 'info', 'AI');
-          alert(`${importedCount} prestations ajoutées à votre planning.`);
-        } else {
-          setError("Gemini n'a détecté aucun service valide sur l'image.");
-        }
-      } catch (err: any) {
-        setError("Erreur lors de l'importation : " + err.message);
-      } finally {
-        setIsUploading(false);
-        if (video.srcObject) (video.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-        setShowCamera(false);
-      }
+      await processRosterData(base64Data, 'image/jpeg');
+      
+      if (video.srcObject) (video.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      setShowCamera(false);
     }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const result = event.target?.result as string;
+      const base64Data = result.split(',')[1];
+      const mimeType = file.type;
+      
+      setRgpdConsent(true);
+      await processRosterData(base64Data, mimeType);
+      
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsDataURL(file);
   };
 
   if (!user) return null;
@@ -105,23 +128,42 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         </div>
       </div>
 
-      {/* AI Import Action */}
+      {/* AI Import Actions */}
       <div className="bg-slate-900 rounded-[56px] p-12 text-white shadow-2xl relative overflow-hidden group">
         <div className="absolute -top-20 -right-20 w-80 h-80 bg-sncb-blue/20 rounded-full blur-[100px] group-hover:scale-125 transition-all duration-1000"></div>
         <div className="relative z-10">
           <p className="text-sncb-yellow font-black text-[11px] uppercase tracking-[0.4em] mb-4">Intégration Roster</p>
-          <p className="text-2xl font-bold leading-tight mb-10 max-w-[320px]">Importez votre planning en photographiant votre feuille de service.</p>
-          <button 
-            onClick={() => {
-              setRgpdConsent(true);
-              setShowCamera(true);
-              navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                .then(s => videoRef.current && (videoRef.current.srcObject = s));
-            }}
-            className="w-full py-7 sncb-button-volume font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 group"
-          >
-            Scanner mon Roster
-          </button>
+          <p className="text-2xl font-bold leading-tight mb-10 max-w-[320px]">Importez votre planning via photo ou fichier PDF.</p>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <button 
+              onClick={() => {
+                setRgpdConsent(true);
+                setShowCamera(true);
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                  .then(s => videoRef.current && (videoRef.current.srcObject = s));
+              }}
+              disabled={isUploading}
+              className="w-full py-7 sncb-button-volume font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 disabled:opacity-50"
+            >
+              Scanner avec Caméra 📸
+            </button>
+
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="w-full py-7 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-[28px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-4 transition-all disabled:opacity-50"
+            >
+              {isUploading ? 'Analyse en cours...' : 'Importer PDF / Image 📂'}
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              accept="image/*,.pdf" 
+              className="hidden" 
+            />
+          </div>
         </div>
       </div>
 
