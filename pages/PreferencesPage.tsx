@@ -38,7 +38,8 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ preferences, setPrefe
     setPreferences(preferences.map(p => p.id === id ? { ...p, level, priority: 1 } : p));
   };
 
-  const PreferenceItem = ({ pref }: { pref: UserPreference }) => (
+  // Fix: Explicitly include 'key' in the props type definition to satisfy strict TypeScript checking when the component is used within a .map() function.
+  const PreferenceItem = ({ pref }: { pref: UserPreference; key?: React.Key }) => (
     <div className="bg-white p-5 rounded-2xl border border-slate-100 apple-shadow-hover transition-all flex items-center justify-between group">
       <div className="flex items-center gap-4">
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${

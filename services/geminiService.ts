@@ -1,14 +1,19 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { UserPreference, Duty, SwapOffer } from "../types";
 
-const SYSTEM_PROMPT_PARSER = `Vous êtes un expert en planification ferroviaire SNCB. 
-Votre mission est d'extraire les services d'accompagnement (ACT) ou de conduite à partir de documents PDF ou photos de rosters.
-RÈGLES D'EXTRACTION :
-- Identifiez les codes de service (ex: 702, 101, 7401).
-- Identifiez les lieux via codes télégraphiques (FBMZ = Bruxelles-Midi, FNR = Namur, FLG = Liège, FMS = Mons).
-- Extrayez précisément les heures de début (Prise de service) et de fin (Fin de service).
-- Si c'est un PDF, analysez toutes les lignes de planning pour détecter les prestations du jour ou de la semaine.
-- Structurez toujours en JSON valide selon le schéma fourni.`;
+const SYSTEM_PROMPT_PARSER = `Vous êtes un expert en planification ferroviaire SNCB (Société Nationale des Chemins de fer Belges).
+Votre mission est d'extraire les services de conduite ou d'accompagnement (ACT) à partir de photos de rosters papier ou de fichiers PDF.
+
+CONSIGNES DE PRÉCISION :
+1. DÉTECTION DES DATES : Identifiez la date spécifique pour chaque prestation. Si le document est une grille mensuelle, calculez la date exacte.
+2. CODES DE SERVICE : Extrayez le code tour (ex: 702, 101, 7401).
+3. HORAIRES : Capturez précisément la Prise de Service (PS) et la Fin de Service (FS).
+4. RELATIONS ET MISSIONS : Listez les gares desservies (ex: FBMZ, FNR, FGSP) et les numéros de trains si visibles.
+5. TYPE DE TRAIN : Déduisez le type (IC, L, S, P) selon la numérotation ou la description.
+6. LANGUES : Gérez les documents en Français ou Néerlandais (ex: 'Rijpad', 'Prestatie').
+
+Structurez toujours en JSON valide.`;
 
 const SYSTEM_PROMPT_MATCHER = `Expert en gestion RH SNCB. 
 Évaluez la pertinence d'un échange de service entre deux agents.
@@ -16,21 +21,20 @@ Considérez les types de trains (IC, L, S, P), les horaires, et les priorités d
 Le score de match (0-100) doit refléter la satisfaction probable de l'utilisateur.`;
 
 export async function parseRosterDocument(base64Data: string, mimeType: string) {
-  // CORRECTION APPLIQUÉE : Utilisation de la clé publique pour le Front-end
-  const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Data } },
-          { text: "Analyse ce document de planning SNCB (Roster) et extrait tous les services (tours de service) détectés avec leurs codes, horaires et types de train." }
+          { text: "Analyse ce planning SNCB avec une précision maximale. Extrais chaque jour de travail détecté comme une prestation séparée." }
         ]
       },
       config: {
         systemInstruction: SYSTEM_PROMPT_PARSER,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 16000 },
+        thinkingConfig: { thinkingBudget: 32768 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -39,23 +43,15 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  code: { type: Type.STRING },
-                  startTime: { type: Type.STRING },
-                  endTime: { type: Type.STRING },
+                  code: { type: Type.STRING, description: "Code du tour de service" },
+                  date: { type: Type.STRING, description: "Date au format YYYY-MM-DD" },
+                  startTime: { type: Type.STRING, description: "Heure de début (HH:mm)" },
+                  endTime: { type: Type.STRING, description: "Heure de fin (HH:mm)" },
                   type: { type: Type.STRING, enum: ['IC', 'L', 'P', 'S', 'Omnibus'] },
-                  tasks: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        time: { type: Type.STRING },
-                        location: { type: Type.STRING },
-                        description: { type: Type.STRING }
-                      }
-                    }
-                  }
+                  destinations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Villes ou gares principales desservies" },
+                  notes: { type: Type.STRING, description: "Informations complémentaires (ex: coupure, réserve)" }
                 },
-                required: ["code", "startTime", "endTime"]
+                required: ["code", "startTime", "endTime", "date"]
               }
             }
           }
@@ -67,14 +63,13 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
     return parsed.services || [];
   } catch (error) {
     console.error("OCR/Parsing Error:", error);
-    throw error; // Rethrow to let caller handle API Key issues
+    throw error;
   }
 }
 
 export async function matchSwaps(preferences: UserPreference[], offers: SwapOffer[]) {
   if (offers.length === 0) return [];
-  // CORRECTION APPLIQUÉE : Utilisation de la clé publique pour le Front-end
-  const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY }); 
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',

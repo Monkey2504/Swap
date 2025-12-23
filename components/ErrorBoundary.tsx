@@ -15,7 +15,7 @@ interface ErrorBoundaryState {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-// Fix: Explicitly extend React.Component to resolve "Property 'setState' does not exist" and "Property 'props' does not exist" errors.
+// Fix: Directly extending React.Component to resolve "Property 'setState' does not exist" and "Property 'props' does not exist" errors.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
@@ -76,23 +76,25 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
     if (this.isRecoverable(error) && this.state.recoveryAttempts < this.MAX_RECOVERY_ATTEMPTS) {
       // Use standard React setState to track recovery attempts and retry automatically.
+      // Fix: Calling setState on the class instance, now correctly typed as a Component.
       this.setState(prevState => ({
         incidentId,
         recoveryAttempts: prevState.recoveryAttempts + 1
       }), () => {
         setTimeout(() => {
+          // Fix: Standard setState call within the callback.
           this.setState({ hasError: false });
         }, 1500);
       });
     } else {
-      // Fix: Use this.setState correctly
+      // Fix: Standard setState call for non-recoverable errors.
       this.setState({ incidentId });
     }
   }
 
   private handleManualRetry() {
     // Reset error state and reload the application context.
-    // Fix: Use this.setState correctly
+    // Fix: Standard setState call to reset error state.
     this.setState({ hasError: false, recoveryAttempts: 0 });
     window.location.reload();
   }
@@ -157,7 +159,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
-    // Fix: Accessing this.props.children correctly through the class component's context.
+    // Fix: Correctly accessing children through the class's props.
     return this.props.children;
   }
 }
