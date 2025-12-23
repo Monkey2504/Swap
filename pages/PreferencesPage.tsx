@@ -41,7 +41,8 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ preferences, setPrefe
     setPreferences(preferences.map(p => p.id === id ? { ...p, level, priority: 1 } : p));
   };
 
-  const RenderPreference = ({ pref, isTop }: { pref: UserPreference, isTop: boolean }) => (
+  // Fixed: explicitly type as React.FC to handle the 'key' prop in JSX mappings
+  const RenderPreference: React.FC<{ pref: UserPreference, isTop: boolean }> = ({ pref, isTop }) => (
     <div className={`p-5 mb-4 rounded-3xl border flex items-center justify-between transition-all bg-white group ${isTop ? 'border-green-100 hover:border-green-500' : 'border-red-100 hover:border-red-500'}`}>
       <div className="flex items-center gap-4">
         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl ${isTop ? 'bg-green-50' : 'bg-red-50'}`}>

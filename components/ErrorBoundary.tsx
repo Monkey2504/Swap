@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -15,7 +15,7 @@ interface ErrorBoundaryState {
  * ErrorBoundary conforme aux standards Enterprise SNCB.
  * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
  */
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private readonly MAX_RECOVERY_ATTEMPTS = 2;
   
   public state: ErrorBoundaryState = {

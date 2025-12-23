@@ -10,7 +10,6 @@ class ProfileService {
     return client;
   }
 
-  // Lit un profil sans générer d'erreur s'il est vide
   async getProfile(userId: string) {
     const client = this.checkConfig();
     try {
@@ -33,7 +32,6 @@ class ProfileService {
     return data;
   }
 
-  // Met à jour sans demander de retour immédiat (évite 204)
   async updateProfile(userId: string, updates: any) {
     const client = this.checkConfig();
     const { error } = await client
@@ -45,15 +43,12 @@ class ProfileService {
     return true;
   }
 
-  // La fonction critique pour la connexion
   async getOrCreateProfile(params: { id: string; email?: string; metadata?: any }) {
     const client = this.checkConfig();
     
-    // 1. On tente de lire
     let profile = await this.getProfile(params.id);
     if (profile) return profile;
 
-    // 2. On prépare les données par défaut
     const isAdmin = params.email?.toLowerCase() === 'admin@admin';
     const newProfile = {
       id: params.id,
@@ -66,27 +61,24 @@ class ProfileService {
       updated_at: new Date().toISOString()
     };
 
-    // 3. ON ÉCRIT (Sans .select() pour éviter PGRST204)
     const { error: insertError } = await client
       .from('profiles')
       .upsert(newProfile, { onConflict: 'id' });
 
     if (insertError) {
-      // Si l'erreur est juste "204", on l'ignore car la donnée est probablement là
+      // On ignore l'erreur 204 car c'est un faux positif de Supabase (la donnée est écrite)
       if (insertError.code !== 'PGRST204' && insertError.code !== '204') {
-        throw insertError;
+        // Pour les autres erreurs, on renvoie le message en string
+        throw new Error(insertError.message || "Erreur lors de l'initialisation du profil");
       }
     }
 
-    // 4. ON PATIENTE POUR LA LECTURE
-    // On essaie de lire le profil créé jusqu'à 5 fois avec un délai
     for (let i = 0; i < 5; i++) {
-      await new Promise(r => setTimeout(r, 1000)); 
+      await new Promise(r => setTimeout(r, 800)); 
       profile = await this.getProfile(params.id);
       if (profile) return profile;
     }
 
-    // Si vraiment rien au bout de 5s, on renvoie l'objet local pour ne pas bloquer l'UI
     return { ...newProfile, id: params.id };
   }
 }

@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { getSupabase, getSupabaseConfig } from '../lib/supabase';
+import { getSupabase, getSupabaseConfig, runDiagnostic } from '../lib/supabase';
+import { formatError } from '../lib/api';
 
 interface LoginPageProps {
   onLoginSuccess?: (user: User) => Promise<void>;
@@ -13,6 +14,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   const config = getSupabaseConfig();
   const [tempUrl, setTempUrl] = useState(config.url);
@@ -20,8 +22,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAuthError(null);
     const supabase = getSupabase();
-    if (!supabase) return;
+    if (!supabase) {
+      setAuthError("Configuration Cloud manquante.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -30,9 +36,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         : await supabase.auth.signInWithPassword({ email, password });
 
       if (error) throw error;
-      if (data.user && onLoginSuccess) await onLoginSuccess(data.user);
+      if (data.user && onLoginSuccess) {
+        await onLoginSuccess(data.user);
+      }
     } catch (error: any) {
-      alert("Accès refusé : " + error.message);
+      setAuthError(formatError(error));
     } finally {
       setLoading(false);
     }
@@ -42,6 +50,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     localStorage.setItem('sncb_supabase_url', tempUrl.trim());
     localStorage.setItem('sncb_supabase_key', tempKey.trim());
     window.location.reload();
+  };
+
+  const checkStatus = async () => {
+    const diag = await runDiagnostic();
+    alert(diag.message + (diag.ok ? "" : "\n\nAssurez-vous d'avoir exécuté le script SQL dans Supabase."));
   };
 
   return (
@@ -62,6 +75,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.5em] mt-4 opacity-60 italic">Plateforme Collaborative</p>
           </div>
 
+          {authError && (
+            <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl text-[11px] text-red-600 font-bold animate-pulse">
+              ⚠️ {authError}
+            </div>
+          )}
+
           {showSettings ? (
             <div className="space-y-6 animate-fadeIn">
               <div className="space-y-4">
@@ -73,7 +92,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   <label className="text-[10px] font-black uppercase text-slate-400 ml-4">Clé Publique</label>
                   <textarea rows={3} className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-mono break-all" value={tempKey} onChange={e => setTempKey(e.target.value)} />
                 </div>
-                <button onClick={saveConfig} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Mettre à jour</button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={saveConfig} className="py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Mettre à jour</button>
+                  <button onClick={checkStatus} className="py-5 bg-sncb-blue text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Test Flux</button>
+                </div>
                 <button onClick={() => setShowSettings(false)} className="w-full text-[10px] font-black text-slate-400 uppercase py-2">Retour à la connexion</button>
               </div>
             </div>
@@ -111,16 +133,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   {isSignUp ? "J'ai déjà mon accès" : "Première connexion ?"}
                 </button>
                 
-                {email === 'admin@admin' && (
-                  <div className="px-5 py-2 bg-amber-50 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse border border-amber-100">
-                    Console Superviseur
-                  </div>
-                )}
-
-                <div 
-                  onDoubleClick={() => setShowSettings(true)}
-                  className="w-2 h-2 bg-slate-100 rounded-full cursor-pointer hover:bg-slate-300 transition-colors"
-                ></div>
+                <div className="flex items-center gap-4">
+                  {email === 'admin@admin' && (
+                    <div className="px-5 py-2 bg-amber-50 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-100">
+                      Console Superviseur
+                    </div>
+                  )}
+                  <button type="button" onClick={() => setShowSettings(true)} className="text-[10px] font-black text-slate-300 uppercase hover:text-slate-500 transition-colors">
+                    ⚙️ Paramètres Cloud
+                  </button>
+                </div>
               </div>
             </form>
           )}

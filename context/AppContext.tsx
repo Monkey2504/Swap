@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useCallback, use
 import { UserProfile, UserPreference, Duty } from '../types';
 import { INITIAL_PREFERENCES, DEPOTS } from '../constants';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { profileService, swapService, authService, preferencesService } from '../lib/api';
+import { profileService, swapService, formatError } from '../lib/api';
 
 interface TechLog {
   timestamp: string;
@@ -49,15 +49,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const lastSavedUser = useRef<string | null>(null);
 
   const addTechLog = useCallback((message: string, type: 'error' | 'info' | 'warn' = 'info', source?: string) => {
+    const formattedMsg = typeof message === 'string' ? message : JSON.stringify(message);
     const log: TechLog = {
       timestamp: new Date().toISOString(),
-      message,
+      message: formattedMsg,
       type,
       source
     };
     setTechLogs(prev => [log, ...prev].slice(0, 100));
     if (type === 'error') {
-      console.error(`[TECH_LOG][${source || 'APP'}] ${message}`);
+      console.error(`[TECH_LOG][${source || 'APP'}] ${formattedMsg}`);
     }
   }, []);
 
@@ -97,9 +98,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lastSavedUser.current = JSON.stringify({ ...profile, preferences: data.preferences });
       addTechLog(`Session active pour ${profile.firstName}`, 'info', 'Profile');
     } catch (err: any) {
-      // On ne bloque plus l'utilisateur si c'est juste une erreur de lecture Cloud
-      console.warn("Erreur mineure chargement profil:", err);
-      addTechLog(`Avertissement Cloud: ${err.message}`, 'warn', 'Supabase');
+      const msg = formatError(err);
+      addTechLog(`Avertissement Cloud: ${msg}`, 'warn', 'Supabase');
     } finally {
       setIsSaving(false);
     }
@@ -127,7 +127,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       lastSavedUser.current = currentState;
     } catch (err: any) {
-      addTechLog(`Échec sync: ${err.message}`, 'warn', 'Sync');
+      addTechLog(`Échec sync: ${formatError(err)}`, 'warn', 'Sync');
     } finally {
       setIsSaving(false);
     }
@@ -160,7 +160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await swapService.publishForSwap(user, duty, isUrgent);
       setSuccessMessage(`Service ${duty.code} publié !`);
     } catch (err: any) {
-      setError(`Erreur: ${err.message}`);
+      setError(formatError(err));
     } finally {
       setIsSaving(false);
     }
