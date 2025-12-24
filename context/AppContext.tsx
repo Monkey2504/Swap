@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { UserProfile, UserPreference, Duty, DepotCode } from '../types';
@@ -325,7 +324,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Fix: Use any for Timeout reference to avoid NodeJS namespace errors in browser context.
+  const saveTimeoutRef = useRef<any>(null);
   const isMountedRef = useRef(true);
   const lastSaveRef = useRef<{ user: string; prefs: string }>({ user: '', prefs: '' });
 

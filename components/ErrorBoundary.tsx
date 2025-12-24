@@ -1,16 +1,16 @@
-import React, { Component, ReactNode } from 'react';
+import React, { Component, ReactNode, ErrorInfo } from 'react';
 
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  children?: ReactNode;
   fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  onError?: (error: Error, errorInfo: ErrorInfo) => void;
   resetOnChange?: boolean;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  errorInfo: React.ErrorInfo | null;
+  errorInfo: ErrorInfo | null;
   incidentId: string;
   recoveryAttempts: number;
   lastErrorTime: number | null;
@@ -24,6 +24,7 @@ interface ErrorBoundaryState {
  * - Stratégie de récupération hiérarchique
  * - Journalisation structurée
  */
+// Fix: Use Component explicitly and use named ErrorInfo type to ensure inheritance properties are recognized.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private static MAX_RECOVERY_ATTEMPTS = 3;
   private static RECOVERY_COOLDOWN_MS = 5000; // 5 secondes entre les erreurs
@@ -164,7 +165,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   /**
    * Capture les informations d'erreur détaillées
    */
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Ne pas utiliser setState ici pour éviter les boucles
     // Utiliser directement this.state pour la journalisation
     this.logErrorToService(error, {

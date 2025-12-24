@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { UserPreference, PreferenceLevel } from '../types';
 import { Train, Clock, ThumbsUp, ThumbsDown, Minus, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
@@ -32,7 +31,8 @@ const PreferencesPage: React.FC<PreferencesPageProps> = ({ preferences, setPrefe
     setPreferences(preferences.map(p => p.id === id ? { ...p, level, priority: 1 } : p));
   };
 
-  const PreferenceItem = ({ pref }: { pref: UserPreference }) => (
+  // Fix: Explicitly include optional key in the props type for child components used in collections.
+  const PreferenceItem = ({ pref }: { pref: UserPreference; key?: React.Key }) => (
     <div className="glass-card p-5 border border-white/5 hover:border-white/10 transition-all flex items-center justify-between group relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-r from-white/[0.01] to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
       <div className="flex items-center gap-4 relative z-10">
