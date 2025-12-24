@@ -4,12 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Application d'échange de services entre cheminots SNCB">
-    <meta name="theme-color" content="#003399">
+    <meta name="description" content="Plateforme communautaire d'échange de services entre agents de bord">
+    <meta name="theme-color" content="#0d1117">
     
-    <title>SWAP SNCB - Échange de services entre cheminots</title>
+    <title>SwapACT - Espace Communautaire</title>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -17,91 +16,50 @@
                 extend: {
                     colors: {
                         'sncb-blue': '#003399',
-                        'sncb-blue-light': '#1a4db3',
-                        'sncb-blue-dark': '#002266',
-                        'sncb-yellow': '#FFD200',
-                        'sncb-yellow-light': '#ffdb33',
-                        'sncb-yellow-dark': '#e6bd00',
-                        'sncb-gray': '#f5f7fa',
-                        'sncb-gray-dark': '#e1e5eb'
+                        'premium-dark': '#0d1117',
+                        'glass-white': 'rgba(255, 255, 255, 0.05)',
+                        'accent-purple': '#a855f7',
+                        'accent-cyan': '#22d3ee'
                     },
                     fontFamily: {
-                        'inter': ['Inter', 'sans-serif'],
-                        'sncb': ['Inter', 'Arial', 'sans-serif']
+                        'inter': ['Inter', 'sans-serif']
                     },
-                    animation: {
-                        'fade-in': 'fadeIn 0.5s ease-out',
-                        'slide-up': 'slideUp 0.4s ease-out',
-                        'pulse-slow': 'pulse 3s infinite',
-                        'bounce-slow': 'bounce 2s infinite'
-                    },
-                    keyframes: {
-                        fadeIn: {
-                            '0%': { opacity: '0' },
-                            '100%': { opacity: '1' }
-                        },
-                        slideUp: {
-                            '0%': { transform: 'translateY(20px)', opacity: '0' },
-                            '100%': { transform: 'translateY(0)', opacity: '1' }
-                        }
+                    backgroundImage: {
+                        'railway': "url('https://i.imgur.com/ChBOn7U.jpeg')"
                     }
                 }
             }
         }
     </script>
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --sncb-blue: #003399;
-            --sncb-yellow: #FFD200;
-            --sncb-gray: #f5f7fa;
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        * { font-family: 'Inter', sans-serif; }
-        body { background: #f5f7fa; min-height: 100vh; margin: 0; }
-        #loading-screen { transition: opacity 0.5s ease-out; }
+        .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+        .glow-cyan { box-shadow: 0 0 20px rgba(34, 211, 238, 0.4); }
+        body { background: #0d1117; color: #fff; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     </style>
-    
-    <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@19.2.3",
-    "react-dom": "https://esm.sh/react-dom@19.2.3",
-    "react-dom/client": "https://esm.sh/react-dom@19.2.3/client",
-    "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.4",
-    "date-fns": "https://esm.sh/date-fns@3.6.0",
-    "lucide-react": "https://esm.sh/lucide-react@0.469.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0"
   }
 }
 </script>
 </head>
-<body class="bg-sncb-gray text-gray-900 antialiased">
-    <!-- Écran de chargement initial -->
-    <div id="loading-screen" class="fixed inset-0 bg-sncb-blue z-50 flex flex-col items-center justify-center">
-        <div class="w-16 h-16 border-4 border-sncb-yellow border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="text-white font-bold tracking-widest uppercase text-sm">Initialisation...</p>
-    </div>
-
-    <!-- Le point de montage React -->
+<body class="antialiased overflow-hidden">
     <div id="root"></div>
-
-    <!-- Script principal de l'application -->
     <script type="module" src="/index.tsx"></script>
-
-    <script type="module">
-        // Cache l'écran de chargement une fois que l'app est prête
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                const ls = document.getElementById('loading-screen');
-                if (ls) ls.style.opacity = '0';
-                setTimeout(() => ls && ls.remove(), 500);
-            }, 500);
-        });
-    </script>
 </body>
 </html>

@@ -1,140 +1,331 @@
-
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { Component, ReactNode } from 'react';
 
 interface ErrorBoundaryProps {
-  children?: ReactNode;
+  children: ReactNode;
+  fallback?: ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  resetOnChange?: boolean;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  incidentId?: string;
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+  incidentId: string;
   recoveryAttempts: number;
+  lastErrorTime: number | null;
+  isPermanentFailure: boolean;
 }
 
 /**
- * ErrorBoundary conforme aux standards Enterprise SNCB.
- * Gère la journalisation des incidents, l'anonymisation des erreurs et la résilience logicielle.
+ * Composant ErrorBoundary robuste avec gestion de récupération progressive
+ * - Capture les erreurs de rendu React
+ * - Gestion des erreurs asynchrones via window.onerror
+ * - Stratégie de récupération hiérarchique
+ * - Journalisation structurée
  */
-// Fix: Extending imported Component directly instead of React.Component to ensure inheritance is correctly recognized by TypeScript and provides access to setState and props.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  private readonly MAX_RECOVERY_ATTEMPTS = 2;
-  
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    recoveryAttempts: 0
-  };
+  private static MAX_RECOVERY_ATTEMPTS = 3;
+  private static RECOVERY_COOLDOWN_MS = 5000; // 5 secondes entre les erreurs
+  private errorHandlerRef: ((event: ErrorEvent) => void) | null = null;
+  private rejectionHandlerRef: ((event: PromiseRejectionEvent) => void) | null = null;
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    // Explicitly bind the manual retry handler to the class instance to maintain correct 'this' context.
-    this.handleManualRetry = this.handleManualRetry.bind(this);
-  }
-
-  private generateIncidentId(): string {
-    return Math.random().toString(36).substring(2, 10).toUpperCase();
-  }
-
-  private sanitizeErrorMessage(message: string): string {
-    const sensitiveKeywords = ['password', 'token', 'key', 'auth', 'secret', 'bearer', 'cookie'];
-    let sanitized = message;
-    sensitiveKeywords.forEach(keyword => {
-      const regex = new RegExp(`${keyword}=[^&\\s]+`, 'gi');
-      sanitized = sanitized.replace(regex, `${keyword}=[REDACTED]`);
-    });
-    return sanitized;
-  }
-
-  private isRecoverable(error: Error): boolean {
-    const message = error.message.toLowerCase();
-    return (
-      message.includes('network') || 
-      message.includes('failed to fetch') || 
-      message.includes('chunkloaderror') ||
-      message.includes('timeout')
-    );
-  }
-
-  public static getDerivedStateFromError(_: Error): Partial<ErrorBoundaryState> {
-    return { hasError: true };
-  }
-
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    const incidentId = this.generateIncidentId();
-    const sanitizedMessage = this.sanitizeErrorMessage(error.message);
-    
-    // Structured logging for supervision tools.
-    const report = {
-      incidentId,
-      timestamp: new Date().toISOString(),
-      errorType: error.name,
-      message: sanitizedMessage,
-      stack: errorInfo.componentStack,
-      url: window.location.href
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      incidentId: this.generateIncidentId(),
+      recoveryAttempts: 0,
+      lastErrorTime: null,
+      isPermanentFailure: false,
     };
 
-    console.error(`[AUDIT] Incident ${incidentId} rapporté au SIEM:\n${JSON.stringify(report, null, 2)}`);
+    this.handleManualRetry = this.handleManualRetry.bind(this);
+    this.handleFullReset = this.handleFullReset.bind(this);
+  }
 
-    if (this.isRecoverable(error) && this.state.recoveryAttempts < this.MAX_RECOVERY_ATTEMPTS) {
-      // Fix: setState is correctly inherited from Component.
-      this.setState(prevState => ({
-        incidentId,
-        recoveryAttempts: (prevState.recoveryAttempts || 0) + 1
-      }), () => {
-        setTimeout(() => {
-          // Fix: Resetting error state automatically for transient network failures via inherited setState.
-          this.setState({ hasError: false });
-        }, 1500);
+  /**
+   * Génère un identifiant unique pour l'incident
+   */
+  private generateIncidentId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `ERR_${timestamp}_${random}`.toUpperCase();
+  }
+
+  /**
+   * Gestionnaire d'erreurs globales (hors React)
+   */
+  private setupGlobalErrorHandlers() {
+    // Capture les erreurs JavaScript globales
+    this.errorHandlerRef = (event: ErrorEvent) => {
+      // Éviter les boucles infinies
+      if (event.error?.message?.includes('ErrorBoundary')) return;
+
+      const error = event.error || new Error(event.message);
+      this.logErrorToService(error, {
+        type: 'global_error',
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
       });
-    } else {
-      // Fix: Record incident ID for non-recoverable errors using inherited setState.
-      this.setState({ incidentId });
+    };
+
+    // Capture les promesses non catchées
+    this.rejectionHandlerRef = (event: PromiseRejectionEvent) => {
+      const error = event.reason instanceof Error 
+        ? event.reason 
+        : new Error(String(event.reason));
+      
+      this.logErrorToService(error, {
+        type: 'unhandled_rejection',
+        reason: event.reason,
+      });
+    };
+
+    window.addEventListener('error', this.errorHandlerRef);
+    window.addEventListener('unhandledrejection', this.rejectionHandlerRef);
+  }
+
+  /**
+   * Nettoie les gestionnaires d'événements
+   */
+  private cleanupGlobalErrorHandlers() {
+    if (this.errorHandlerRef) {
+      window.removeEventListener('error', this.errorHandlerRef);
+    }
+    if (this.rejectionHandlerRef) {
+      window.removeEventListener('unhandledrejection', this.rejectionHandlerRef);
     }
   }
 
-  private handleManualRetry() {
-    // Fix: Properly utilizing inherited setState from Component to reset before reload.
-    this.setState({ hasError: false, recoveryAttempts: 0 });
-    window.location.reload();
+  /**
+   * Journalisation structurée des erreurs
+   */
+  private logErrorToService(error: Error, metadata: Record<string, any> = {}) {
+    const logEntry = {
+      incidentId: this.state.incidentId,
+      timestamp: new Date().toISOString(),
+      component: 'ErrorBoundary',
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      },
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      state: {
+        recoveryAttempts: this.state.recoveryAttempts,
+        lastErrorTime: this.state.lastErrorTime,
+      },
+      metadata,
+    };
+
+    // Envoi à un service de logging (console en développement)
+    console.error('[ErrorBoundary] Incident:', this.state.incidentId, logEntry);
+
+    // En production, envoyer à votre service de monitoring
+    if (process.env.NODE_ENV === 'production') {
+      this.sendToMonitoringService(logEntry).catch(() => {
+        // Ignorer les erreurs d'envoi pour ne pas créer de boucle
+      });
+    }
   }
 
-  public render() {
-    if (this.state.hasError) {
-      if (this.state.recoveryAttempts > 0 && this.state.recoveryAttempts <= this.MAX_RECOVERY_ATTEMPTS) {
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-            <div className="text-center animate-pulse">
-              <div className="w-12 h-12 border-4 border-blue-900 border-t-yellow-400 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-blue-900 font-bold uppercase tracking-widest text-xs">
-                Tentative de reconnexion ({this.state.recoveryAttempts}/{this.MAX_RECOVERY_ATTEMPTS})...
-              </p>
-            </div>
-          </div>
-        );
-      }
+  /**
+   * Envoi sécurisé aux services de monitoring
+   */
+  private async sendToMonitoringService(data: any) {
+    // Intégration avec Sentry, LogRocket, ou votre backend
+    if (typeof window !== 'undefined') {
+      // Exemple avec un endpoint d'API
+      await fetch('/api/error-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).catch(() => {}); // Ne pas bloquer en cas d'erreur
+    }
+  }
 
+  /**
+   * Méthode statique pour mettre à jour l'état lors d'une erreur
+   */
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return {
+      hasError: true,
+      error,
+      incidentId: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      lastErrorTime: Date.now(),
+    };
+  }
+
+  /**
+   * Capture les informations d'erreur détaillées
+   */
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Ne pas utiliser setState ici pour éviter les boucles
+    // Utiliser directement this.state pour la journalisation
+    this.logErrorToService(error, {
+      type: 'react_error',
+      componentStack: errorInfo.componentStack,
+    });
+
+    // Appeler le callback parent si fourni
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo);
+    }
+
+    // Mettre à jour l'état avec les informations d'erreur
+    this.setState({
+      errorInfo,
+    });
+  }
+
+  componentDidMount() {
+    this.setupGlobalErrorHandlers();
+  }
+
+  componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    // Réinitialiser l'erreur si les props changent (navigation, etc.)
+    if (this.props.resetOnChange && 
+        this.props.children !== prevProps.children && 
+        this.state.hasError) {
+      this.resetErrorState();
+    }
+  }
+
+  componentWillUnmount() {
+    this.cleanupGlobalErrorHandlers();
+  }
+
+  /**
+   * Réinitialise l'état d'erreur
+   */
+  private resetErrorState() {
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      incidentId: this.generateIncidentId(),
+      recoveryAttempts: 0,
+      isPermanentFailure: false,
+    });
+  }
+
+  /**
+   * Stratégie de récupération hiérarchique
+   */
+  private handleManualRetry() {
+    const now = Date.now();
+    const { lastErrorTime, recoveryAttempts } = this.state;
+
+    // Vérifier le cooldown entre les tentatives
+    if (lastErrorTime && (now - lastErrorTime) < ErrorBoundary.RECOVERY_COOLDOWN_MS) {
+      console.warn('Trop de tentatives de récupération rapprochées');
+      return;
+    }
+
+    // Limiter le nombre de tentatives
+    if (recoveryAttempts >= ErrorBoundary.MAX_RECOVERY_ATTEMPTS) {
+      this.setState({
+        isPermanentFailure: true,
+      });
+      return;
+    }
+
+    // Tentative de récupération douce
+    this.setState(prevState => ({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      recoveryAttempts: prevState.recoveryAttempts + 1,
+      lastErrorTime: now,
+    }));
+  }
+
+  /**
+   * Réinitialisation complète (dernier recours)
+   */
+  private handleFullReset() {
+    // Sauvegarder l'état important avant reset
+    const importantState = {
+      userToken: localStorage.getItem('auth_token'),
+      // Ajouter d'autres données critiques
+    };
+
+    // Nettoyer le localStorage de manière sélective
+    Object.keys(localStorage).forEach(key => {
+      if (!key.startsWith('swapact_') && !key.includes('token')) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // Recharger la page en conservant certaines données
+    if (importantState.userToken) {
+      localStorage.setItem('auth_token', importantState.userToken);
+    }
+
+    // Option 1: Rechargement doux (garder la session)
+    window.location.hash = '#recovery';
+    window.location.reload();
+
+    // Option 2: Redirection vers la page d'accueil
+    // window.location.href = window.location.origin;
+  }
+
+  /**
+   * Affiche le composant de fallback personnalisé ou l'UI par défaut
+   */
+  render() {
+    const { hasError, error, errorInfo, incidentId, recoveryAttempts, isPermanentFailure } = this.state;
+    const { children, fallback } = this.props;
+
+    // Si pas d'erreur, afficher les enfants normalement
+    if (!hasError) {
+      return children;
+    }
+
+    // Si un fallback personnalisé est fourni
+    if (fallback) {
+      return fallback;
+    }
+
+    // Échec permanent - afficher un message spécial
+    if (isPermanentFailure) {
       return (
-        <div 
-          className="min-h-screen flex items-center justify-center bg-slate-100 p-6"
-          role="alert"
-          aria-live="assertive"
-        >
-          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
-            <div className="bg-blue-900 p-8 text-center">
-              <div className="w-20 h-20 bg-yellow-400 rounded-2xl flex items-center justify-center text-blue-900 text-4xl font-black mx-auto mb-4 shadow-inner">
-                !
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+          <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-red-200">
+            <div className="bg-red-500 p-8 text-center">
+              <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-red-500 text-4xl font-black mx-auto mb-4">
+                ⚠️
               </div>
-              <h2 className="text-white text-xl font-black uppercase tracking-tighter italic">Incident Technique</h2>
-              <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mt-2">Référence: {this.state.incidentId}</p>
+              <h2 className="text-white text-xl font-black uppercase tracking-tighter">
+                Échec Système
+              </h2>
+              <p className="text-white/80 text-sm mt-2">
+                L'application rencontre des problèmes persistants
+              </p>
             </div>
             <div className="p-8 text-center space-y-6">
-              <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                Une erreur inattendue empêche l'affichage du module. Nos équipes ont été alertées.
+              <p className="text-slate-600 text-sm leading-relaxed">
+                Nous n'avons pas pu récupérer l'application après plusieurs tentatives.
+                Veuillez contacter le support technique.
               </p>
-              <button 
-                onClick={this.handleManualRetry}
-                className="w-full py-4 bg-sncb-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-sncb-blue/20 hover:bg-blue-800 transition-all"
+              <div className="space-y-3">
+                <p className="text-xs text-slate-500">
+                  Référence incident: <strong>{incidentId}</strong>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Tentatives: {recoveryAttempts}/{ErrorBoundary.MAX_RECOVERY_ATTEMPTS}
+                </p>
+              </div>
+              <button
+                onClick={this.handleFullReset}
+                className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold text-sm uppercase tracking-wider hover:bg-slate-900 transition-colors"
               >
-                Redémarrer l'application
+                Réinitialiser complètement
               </button>
             </div>
           </div>
@@ -142,7 +333,116 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       );
     }
 
-    // Fix: access inherited props.children correctly from the Component base class.
-    return this.props.children;
+    // UI d'erreur par défaut
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-8 text-center">
+            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-white text-4xl font-black mx-auto mb-4 backdrop-blur-sm">
+              🚂
+            </div>
+            <h2 className="text-white text-xl font-black uppercase tracking-tighter">
+              Oups ! Une erreur est survenue
+            </h2>
+            <p className="text-white/80 text-sm mt-2">
+              L'application a rencontré un problème technique
+            </p>
+          </div>
+          
+          <div className="p-8 space-y-6">
+            <div className="text-center space-y-4">
+              <p className="text-slate-600 text-sm leading-relaxed">
+                Pas d'inquiétude, vos données sont en sécurité sur le cloud SNCB.
+                Nous avons créé un rapport technique pour résoudre le problème.
+              </p>
+              
+              {error && (
+                <div className="bg-slate-50 p-4 rounded-xl text-left">
+                  <p className="text-xs font-semibold text-slate-500 mb-1">Détails techniques :</p>
+                  <p className="text-sm text-slate-700 font-mono truncate">
+                    {error.message || 'Erreur inconnue'}
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                <span className="font-semibold">Incident :</span>
+                <code className="bg-slate-100 px-2 py-1 rounded">{incidentId}</code>
+                <span className="text-xs">
+                  (Tentative {recoveryAttempts + 1}/{ErrorBoundary.MAX_RECOVERY_ATTEMPTS})
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={this.handleManualRetry}
+                className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl font-bold text-sm uppercase tracking-wider hover:opacity-90 transition-opacity shadow-lg"
+              >
+                Réessayer l'application
+              </button>
+              
+              <button
+                onClick={this.handleFullReset}
+                className="w-full py-3 text-slate-600 border border-slate-300 rounded-2xl font-medium text-sm hover:bg-slate-50 transition-colors"
+              >
+                Réinitialiser et recharger
+              </button>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200">
+              <p className="text-xs text-slate-500 text-center">
+                Si le problème persiste, contactez le support avec le code incident.
+                <br />
+                <a 
+                  href={`mailto:support@sncb.be?subject=Incident ${incidentId}`}
+                  className="text-blue-600 hover:underline"
+                >
+                  support@sncb.be
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 }
+
+/**
+ * Hook personnalisé pour utiliser le ErrorBoundary de manière déclarative
+ */
+export function useErrorBoundary() {
+  const [error, setError] = React.useState<Error | null>(null);
+
+  const showBoundary = React.useCallback((err: Error) => {
+    setError(err);
+  }, []);
+
+  const resetError = React.useCallback(() => {
+    setError(null);
+  }, []);
+
+  return {
+    error,
+    showBoundary,
+    resetError,
+  };
+}
+
+/**
+ * Composant ErrorBoundary simplifié pour les cas d'usage courants
+ */
+export const ErrorBoundarySimple: React.FC<{
+  children: ReactNode;
+  fallback?: ReactNode;
+}> = ({ children, fallback }) => {
+  return (
+    <ErrorBoundary
+      fallback={fallback}
+      resetOnChange={true}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+};

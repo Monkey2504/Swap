@@ -5,22 +5,22 @@ import { STATION_CODES } from "../lib/stationCodes";
 
 const ABBR_HINT = STATION_CODES.slice(0, 50).map(s => `${s.code}:${s.fr}`).join(', ');
 
-const SYSTEM_PROMPT_PARSER = `Vous êtes l'Expert IA de Planification Ferroviaire SNCB.
-Votre mission : Digitaliser un ROSTER MENSUEL avec une précision de 100%.
+const SYSTEM_PROMPT_PARSER = `Vous êtes l'Expert IA de Planification Ferroviaire au service d'une plateforme communautaire entre agents de bord.
+Votre mission : Digitaliser un planning de service (ROSTER) avec une précision de 100%.
 
-CONNAISSANCE DES CODES STATIONS (Abréviations Télégraphiques) :
-Vous devez reconnaître les codes de gares comme : ${ABBR_HINT}...
+CONNAISSANCE DES CODES STATIONS :
+Vous connaissez les codes de gares comme : ${ABBR_HINT}...
 Si vous voyez un code de 2 à 4 lettres majuscules, c'est une gare.
 
-STRUCTURE DU DOCUMENT :
-- Grille mensuelle. Jours en lignes.
+STRUCTURE TYPIQUE DU DOCUMENT :
+- Grille mensuelle ou liste.
 - 'PS' = Prise de Service, 'FS' = Fin de Service.
-- Les trajets sont souvent notés comme : "FBMZ - FLG" (Bruxelles-Midi vers Liège).
+- Les trajets sont souvent notés : "FBMZ - FLG" (Bruxelles-Midi vers Luik).
 
 RÈGLES D'EXTRACTION :
-1. ANALYSE MENSUELLE : Extrayez chaque jour du mois.
+1. ANALYSE : Identifiez chaque jour travaillé.
 2. CODES TOURS : Ex: 702, 101, 905.
-3. DESTINATIONS : Transformez les codes télégraphiques en noms de gares complets si possible, sinon gardez le code.
+3. DESTINATIONS : Traduisez les codes télégraphiques en noms de gares complets.
 4. FORMAT ISO : Dates en YYYY-MM-DD.`;
 
 export async function parseRosterDocument(base64Data: string, mimeType: string) {
@@ -31,7 +31,7 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Data } },
-          { text: "Digitalise ce planning mensuel. Utilise tes connaissances des codes télégraphiques SNCB pour identifier les destinations." }
+          { text: "Digitalise ce planning. Utilise tes connaissances des codes télégraphiques ferroviaires pour identifier les destinations." }
         ]
       },
       config: {
@@ -64,7 +64,7 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
     const parsed = JSON.parse(response.text || '{"services": []}');
     return parsed.services || [];
   } catch (error) {
-    console.error("Erreur d'analyse massive du roster:", error);
+    console.error("Erreur d'analyse du roster:", error);
     throw error;
   }
 }
@@ -79,7 +79,7 @@ export async function matchSwaps(preferences: UserPreference[], offers: SwapOffe
       PREFS: ${JSON.stringify(preferences)}
       OFFRES: ${JSON.stringify(offers)}`,
       config: {
-        systemInstruction: "Expert RH SNCB. Calculez un score de compatibilité (0-100) pour chaque offre basé sur les préférences de l'utilisateur.",
+        systemInstruction: "Expert en ergonomie du travail ferroviaire. Calculez un score de compatibilité (0-100) basé sur les préférences de l'utilisateur.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,

@@ -28,7 +28,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setAuthError(null);
     const supabase = getSupabase();
     if (!supabase) {
-      setAuthError("Configuration Cloud SNCB manquante.");
+      setAuthError("Configuration technique manquante.");
       return;
     }
 
@@ -41,8 +41,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           options: {
             data: {
               firstName: email.split('.')[0] || 'Agent',
-              lastName: 'SNCB',
-              depot: 'Bruxelles-Midi'
+              lastName: 'Agent',
+              depot: 'A définir'
             }
           }
         });
@@ -75,16 +75,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden font-inter bg-sncb-blue">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden font-inter bg-slate-950">
       {/* Background avec Overlay */}
       <div className="absolute inset-0 z-0">
         <img 
           src="https://i.imgur.com/1iDqp8I.jpeg" 
-          alt="SNCB Train Background" 
+          alt="Railway Background" 
           className="w-full h-full object-cover scale-105"
         />
-        <div className="absolute inset-0 bg-[#003399]/75 mix-blend-multiply backdrop-blur-[2px]"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#001a4d]/40 to-[#000a1a]"></div>
+        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[4px]"></div>
       </div>
 
       <div className="w-full max-w-md px-6 relative z-10 animate-fade-in flex flex-col items-center">
@@ -105,7 +104,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
             <h2 className="text-2xl font-black text-slate-900 mb-4 italic">Email envoyé !</h2>
             <p className="text-sm text-slate-500 font-medium leading-relaxed mb-8">
-              Un lien de confirmation a été envoyé à <strong>{email}</strong>. Cliquez dessus pour activer votre accès.
+              Un lien de confirmation a été envoyé à <strong>{email}</strong>. Activez votre compte pour rejoindre la communauté.
             </p>
             <button 
               onClick={() => { setSignUpSuccess(false); setIsSignUp(false); }}
@@ -131,7 +130,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 className={`flex-1 py-5 flex items-center justify-center gap-2 transition-all ${isSignUp ? 'border-b-4 border-sncb-blue bg-white text-sncb-blue' : 'text-slate-400 bg-slate-50/50 hover:bg-slate-50'}`}
               >
                 <UserPlus size={18} />
-                <span className="font-black text-xs uppercase tracking-widest">S'inscrire</span>
+                <span className="font-black text-xs uppercase tracking-widest">Rejoindre</span>
               </button>
             </div>
 
@@ -144,19 +143,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
               {showSettings ? (
                 <div className="space-y-4 animate-slide-up">
-                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Config Cloud SNCB</h3>
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Configuration Serveur</h3>
                    <input 
                     type="text" 
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 text-xs font-mono border-none focus:ring-2 focus:ring-sncb-blue/10" 
                     value={tempUrl} 
-                    placeholder="URL Supabase"
+                    placeholder="URL Base de données"
                     onChange={e => setTempUrl(e.target.value)} 
                    />
                    <textarea 
                     rows={2} 
                     className="w-full px-5 py-4 rounded-2xl bg-slate-50 text-[10px] font-mono border-none focus:ring-2 focus:ring-sncb-blue/10" 
                     value={tempKey} 
-                    placeholder="Clé Anon"
+                    placeholder="Clé d'accès"
                     onChange={e => setTempKey(e.target.value)} 
                    />
                    <button onClick={saveConfig} className="w-full py-4 bg-sncb-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-sncb-blue/10">Sauvegarder</button>
@@ -166,10 +165,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 <form onSubmit={handleAuth} className="space-y-6">
                   <div className="space-y-3">
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group focus-within:border-sncb-blue/30 transition-all">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">E-mail Professionnel</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">Votre E-mail Agent</label>
                       <input
                         type="email"
-                        placeholder="nom.prenom@sncb.be"
+                        placeholder="prenom.nom@collègue"
                         className="w-full bg-transparent outline-none font-bold text-slate-900 text-sm"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -207,12 +206,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     {loading ? (
                       <Loader2 size={24} className="animate-spin" />
                     ) : (
-                      isSignUp ? "Créer mon compte" : "Se Connecter"
+                      isSignUp ? "Créer mon accès" : "Se Connecter"
                     )}
                   </button>
 
                   <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    {isSignUp ? "Accès réservé aux agents SNCB" : "Sécurisé par SNCB Cloud Identity"}
+                    Projet communautaire indépendant - Par et pour les agents de bord
                   </p>
                 </form>
               )}
@@ -223,7 +222,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         <div className="flex flex-col items-center gap-6 mt-12 pb-8">
           <button className="flex items-center gap-2 text-white/50 hover:text-white transition-colors text-xs font-black uppercase tracking-widest italic">
             <HelpCircle size={14} />
-            Support Technique
+            Aide & Support Communautaire
           </button>
 
           <button 

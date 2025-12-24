@@ -16,10 +16,11 @@ class ProfileService {
       const { data, error } = await client
         .from('profiles')
         .select('*')
-        .eq('id', userId);
+        .eq('id', userId)
+        .single();
       
       if (error) return null;
-      return (data && data.length > 0) ? data[0] : null;
+      return data;
     } catch (e) {
       return null;
     }
@@ -53,34 +54,22 @@ class ProfileService {
     const newProfile = {
       id: params.id,
       sncb_id: isAdmin ? 'ADMIN_01' : (params.metadata?.sncbId || params.email?.split('@')[0] || `agent_${params.id.slice(0,5)}`),
-      first_name: isAdmin ? 'Superviseur' : (params.metadata?.firstName || 'François'),
-      last_name: isAdmin ? 'SNCB' : (params.metadata?.lastName || 'Agent'),
+      first_name: isAdmin ? 'Superviseur' : (params.metadata?.firstName || ''),
+      last_name: isAdmin ? 'SNCB' : (params.metadata?.lastName || ''),
       email: params.email,
-      depot: 'Bruxelles-Midi',
+      depot: '',
       role: isAdmin ? 'admin' : 'Conducteur',
-      onboarding_completed: false,
+      onboarding_completed: isAdmin ? true : false,
       updated_at: new Date().toISOString()
     };
 
-    // Tentative d'insertion avec gestion silencieuse du 204 (success)
     const { error: insertError } = await client
       .from('profiles')
       .upsert(newProfile, { onConflict: 'id' });
 
-    if (insertError) {
-      if (insertError.code !== 'PGRST204' && String(insertError.code) !== '204') {
-        throw insertError;
-      }
-    }
+    if (insertError) throw insertError;
 
-    // Retry loop pour s'assurer que le RLS a bien propagé le droit de lecture
-    for (let i = 0; i < 5; i++) {
-      await new Promise(r => setTimeout(r, 1000)); 
-      profile = await this.getProfile(params.id);
-      if (profile) return profile;
-    }
-
-    return { ...newProfile, id: params.id };
+    return newProfile;
   }
 }
 

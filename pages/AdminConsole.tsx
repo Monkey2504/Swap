@@ -31,11 +31,11 @@ const AdminConsole: React.FC = () => {
 
   if (user?.role !== 'admin') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-20 text-center bg-slate-50">
-        <div className="sncb-card p-12 max-w-lg">
-           <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">🚫</div>
-           <h1 className="text-3xl font-black text-slate-900 uppercase italic">Accès Refusé</h1>
-           <p className="mt-4 font-bold text-slate-500">Identifiant admin@admin requis pour accéder à cette zone.</p>
+      <div className="min-h-screen flex items-center justify-center p-20 text-center bg-premium-dark">
+        <div className="glass-card p-12 max-w-lg border-white/5">
+           <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">🚫</div>
+           <h1 className="text-3xl font-black text-white uppercase italic">Espace Réservé</h1>
+           <p className="mt-4 font-bold text-slate-500 text-sm">Cet espace est réservé aux initiateurs du projet.</p>
         </div>
       </div>
     );
@@ -43,78 +43,42 @@ const AdminConsole: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 animate-fadeIn p-6 pb-40 font-inter">
-      <div className="sncb-card bg-slate-900 text-white p-12 border-none relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-sncb-blue/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+      <div className="glass-card bg-slate-900/40 p-12 border-white/10 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-accent-purple/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
         <div className="relative z-10 space-y-2">
-          <p className="text-sncb-yellow font-black text-[10px] uppercase tracking-[0.4em]">Maintenance Système</p>
-          <h2 className="text-4xl font-black italic uppercase tracking-tighter">Console <span className="text-sncb-yellow">Superviseur</span></h2>
+          <p className="text-accent-purple font-black text-[10px] uppercase tracking-[0.4em]">Gestion Communautaire</p>
+          <h2 className="text-4xl font-black italic uppercase tracking-tighter">Console <span className="text-accent-purple">Technique</span></h2>
         </div>
         <div className="flex flex-wrap gap-4 relative z-10 mt-10">
-          <button onClick={performCheck} className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-[10px] uppercase border border-white/10 transition-all">Analyser</button>
-          <button onClick={() => setShowSql(!showSql)} className="px-8 py-4 bg-sncb-blue hover:bg-sncb-blue-light rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg">Voir SQL de réparation</button>
-          <button onClick={resetConfig} className="px-8 py-4 bg-red-600 hover:bg-red-700 rounded-2xl font-black text-[10px] uppercase transition-all">Reset Cache Local</button>
+          <button onClick={performCheck} className="px-8 py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-black text-[10px] uppercase border border-white/10 transition-all">Lancer Diagnostic</button>
+          <button onClick={() => setShowSql(!showSql)} className="px-8 py-4 bg-accent-purple hover:bg-accent-purple-light rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg">Structure SQL</button>
+          <button onClick={resetConfig} className="px-8 py-4 bg-red-600 hover:bg-red-700 rounded-2xl font-black text-[10px] uppercase transition-all">Nettoyer Cache</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="space-y-8">
-          {/* Diagnostic Card */}
-          <div className="bg-white rounded-[40px] p-10 sncb-card border-none shadow-xl">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 italic">État Cloud SNCB</h3>
-            <div className={`p-6 rounded-3xl mb-8 ${diag?.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+          <div className="glass-card p-10 border-white/5 shadow-xl">
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-8 italic">Statut Serveur</h3>
+            <div className={`p-6 rounded-3xl mb-8 ${diag?.ok ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
               <div className="flex items-center gap-4 mb-3">
                 <span className={`w-3 h-3 rounded-full ${diag?.ok ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`}></span>
                 <p className="font-black uppercase text-[11px]">{diag?.type}</p>
               </div>
               <p className="text-xs font-bold leading-relaxed">{diag?.message}</p>
             </div>
-            
-            {(diag?.type === 'migration_required' || !diag?.ok) && (
-              <div className="p-6 bg-amber-50 rounded-3xl border border-amber-200 animate-pulse">
-                <p className="text-[10px] font-black text-amber-800 uppercase mb-2">Action Requise :</p>
-                <p className="text-[10px] font-bold text-amber-700">La structure de données est obsolète ou le cache Supabase bloque les nouvelles colonnes.</p>
-              </div>
-            )}
           </div>
-
-          <button 
-            onClick={() => {
-              navigator.clipboard.writeText(SQL_SETUP_SCRIPT);
-              addTechLog("Script SQL copié dans le presse-papier", 'info', 'Admin');
-              alert("Script SQL copié !\n\n1. Allez sur votre Dashboard Supabase\n2. SQL Editor\n3. New Query\n4. Collez et cliquez sur RUN");
-            }} 
-            className="w-full py-7 sncb-button-volume font-black uppercase text-[11px] tracking-widest flex items-center justify-center gap-4 group"
-          >
-            📋 Copier Correctif SQL
-          </button>
         </div>
 
         <div className="lg:col-span-2 space-y-8">
-          {showSql && (
-            <div className="bg-slate-50 rounded-[48px] p-10 border-2 border-dashed border-sncb-blue animate-fadeIn">
-              <h3 className="text-[10px] font-black text-sncb-blue uppercase tracking-widest mb-6">Script SQL Manuel</h3>
-              <textarea 
-                readOnly 
-                className="w-full h-64 bg-white border border-slate-200 rounded-3xl p-6 font-mono text-[10px] text-slate-600 focus:outline-none"
-                value={SQL_SETUP_SCRIPT}
-              />
-              <p className="mt-4 text-[9px] font-bold text-slate-400 uppercase">Copiez ce texte et collez-le dans l'éditeur SQL de Supabase.</p>
-            </div>
-          )}
-
-          <div className="bg-slate-900 rounded-[48px] overflow-hidden shadow-2xl flex flex-col h-[500px]">
-            <div className="p-6 bg-slate-800 flex justify-between items-center">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Flux d'événements techniques</span>
-              <div className="flex gap-1.5">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-              </div>
+          <div className="glass-card bg-slate-900/60 rounded-[48px] overflow-hidden shadow-2xl flex flex-col h-[500px] border-white/5">
+            <div className="p-6 bg-white/5 flex justify-between items-center">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Logs de maintenance</span>
             </div>
             
             <div className="flex-grow overflow-y-auto p-8 space-y-4 font-mono text-[11px]">
               {techLogs.length === 0 ? (
-                <p className="text-slate-600 italic">Aucun log récent...</p>
+                <p className="text-slate-600 italic">En attente d'événements...</p>
               ) : (
                 techLogs.map((log, i) => (
                   <div key={i} className="flex gap-4 border-b border-white/5 pb-3">
