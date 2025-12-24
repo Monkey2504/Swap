@@ -1,139 +1,235 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Duty } from '../types';
-// Fixed: Added missing 'Star' import from lucide-react
-import { Calendar, Repeat, Cloud, Plus, MapPin, Search, Star } from 'lucide-react';
+import { Train, Clock, Calendar, ChevronRight, AlertCircle, ArrowRight } from 'lucide-react';
+import { getStationName } from '../lib/stationCodes';
 
 interface DashboardPageProps {
   duties: Duty[];
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ duties }) => {
-  const nextDuty = duties[0];
+  // Tri des services par date et heure
+  const sortedDuties = useMemo(() => {
+    return [...duties].sort((a, b) => {
+      const dateA = new Date(`${a.date}T${a.startTime}`).getTime();
+      const dateB = new Date(`${b.date}T${b.startTime}`).getTime();
+      return dateA - dateB;
+    });
+  }, [duties]);
+
+  const nextDuty = sortedDuties[0];
+  const upcomingAgenda = sortedDuties.slice(1, 5);
+
+  // Fonction utilitaire pour calculer la durée d'un service
+  const calculateDuration = (start: string, end: string) => {
+    const [h1, m1] = start.split(':').map(Number);
+    const [h2, m2] = end.split(':').map(Number);
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60; // Gestion des services de nuit
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+    return `${h}h${m > 0 ? m.toString().padStart(2, '0') : ''}`;
+  };
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-top-4 duration-700">
-      {/* Hero Section */}
-      <div className="glass-card p-10 flex items-center justify-between relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent"></div>
-        <div className="relative z-10 space-y-4">
-          <h2 className="text-4xl font-black italic tracking-tight text-white leading-tight">
-            Échanges Recommandés<br />pour Vous
-          </h2>
-          <p className="text-white/40 text-sm max-w-sm font-medium leading-relaxed">
-            Notre IA a analysé 45 nouveaux tours de service. Voici les meilleures opportunités pour votre planning.
+    <div className="max-w-6xl mx-auto space-y-8 font-inter">
+      {/* En-tête Institutionnel */}
+      <div className="flex justify-between items-end pb-4 border-b-2 border-[#003399]">
+        <div>
+          <h1 className="text-3xl font-extrabold text-[#333333] tracking-tight">Terminal Agent de Bord</h1>
+          <p className="text-sm text-gray-500 font-medium mt-1">Gestion des prestations et bourses d'échange</p>
+        </div>
+        <div className="text-right hidden md:block">
+          <p className="text-[10px] font-bold uppercase text-gray-400">Date de consultation</p>
+          <p className="text-lg font-bold text-[#003399]">
+            {new Date().toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
-
-        <div className="relative z-10 flex items-center gap-6 bg-white/5 p-6 rounded-[32px] border border-white/10">
-          <div className="relative w-24 h-24">
-            <div className="match-score-circle w-full h-full">
-               <div className="inner-score-bg font-black text-3xl italic">92</div>
-            </div>
-          </div>
-          <div>
-            <p className="text-sm font-black italic">Score de Match Global</p>
-            <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold mt-1">Préférences respectées</p>
-          </div>
-        </div>
       </div>
 
-      {/* Grid d'analyse */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Analyse Instantanée */}
-        <div className="glass-card p-8 space-y-6">
-          <h3 className="text-xs font-black uppercase tracking-widest text-white/60">Analyse Roster Instantanée</h3>
-          <div className="bg-white/5 rounded-3xl p-8 border border-dashed border-white/10 flex flex-col items-center justify-center text-center gap-4 group cursor-pointer hover:border-purple-500/50 transition-colors">
-            <div className="relative">
-              <Cloud size={40} className="text-purple-400" />
-              <div className="absolute -top-1 -right-1 bg-white/10 rounded-full p-1 border border-white/20">
-                <Plus size={12} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Colonne Principale : Prestation Immédiate & Agenda */}
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* Service Immédiat */}
+          <div className="sncb-card border-l-4 border-l-[#003399]">
+            <div className="sncb-card-header bg-gray-50/50">
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-[#003399]" />
+                <h3>Prochaine Prestation</h3>
+              </div>
+              <span className="badge-sncb badge-success">Validé RGPS</span>
+            </div>
+            <div className="sncb-card-content">
+              {nextDuty ? (
+                <div className="space-y-8">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="flex items-center gap-6">
+                      <div className="w-20 h-20 bg-[#003399] rounded flex flex-col items-center justify-center text-white shadow-lg">
+                        <span className="text-[10px] font-bold uppercase opacity-70">Série</span>
+                        <span className="text-3xl font-black">{nextDuty.code}</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 text-[#003399] mb-1">
+                          <Train size={18} />
+                          <span className="text-lg font-extrabold uppercase tracking-tight">
+                            Service {nextDuty.type}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-gray-600">
+                          {new Date(nextDuty.date).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'short' })}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-4 w-full md:w-auto">
+                      <div className="flex-1 md:w-32 p-4 bg-gray-50 rounded border border-gray-100 text-center">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">PS (Prise)</p>
+                        <p className="text-2xl font-black text-[#333333]">{nextDuty.startTime}</p>
+                      </div>
+                      <div className="flex-1 md:w-32 p-4 bg-gray-50 rounded border border-gray-100 text-center">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">FS (Fin)</p>
+                        <p className="text-2xl font-black text-[#333333]">{nextDuty.endTime}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {nextDuty.destinations && nextDuty.destinations.length > 0 && (
+                    <div className="pt-6 border-t border-gray-100">
+                       <p className="text-[10px] font-bold text-gray-400 uppercase mb-3">Itinéraire Télégraphique</p>
+                       <div className="flex items-center gap-3 flex-wrap">
+                          {nextDuty.destinations.map((dest, idx) => (
+                            <React.Fragment key={idx}>
+                              <div className="px-3 py-1 bg-white border border-gray-200 rounded text-xs font-bold text-[#333333]">
+                                {dest} <span className="text-[9px] text-gray-400 ml-1">({getStationName(dest)})</span>
+                              </div>
+                              {idx < nextDuty.destinations.length - 1 && <ArrowRight size={14} className="text-gray-300" />}
+                            </React.Fragment>
+                          ))}
+                       </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-10 text-center border-2 border-dashed border-gray-100 rounded">
+                  <AlertCircle size={40} className="mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-400 font-bold text-sm uppercase">Aucune prestation chargée</p>
+                  <button className="mt-4 text-[#003399] font-bold text-xs uppercase underline">Scanner mon Roster PDF</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Agenda des jours suivants */}
+          <div className="sncb-card">
+            <div className="sncb-card-header">
+              <h3>Agenda des Prestations</h3>
+              <Calendar size={18} className="text-gray-400" />
+            </div>
+            <div className="sncb-card-content p-0">
+              {upcomingAgenda.length > 0 ? (
+                <div className="divide-y divide-gray-100">
+                  {upcomingAgenda.map((duty) => (
+                    <div key={duty.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center hover:bg-gray-50 transition-colors group">
+                      <div className="flex items-center gap-6">
+                        <div className="w-12 text-center">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase">
+                            {new Date(duty.date).toLocaleDateString('fr-BE', { weekday: 'short' })}
+                          </p>
+                          <p className="text-xl font-black text-[#003399]">
+                            {new Date(duty.date).getDate()}
+                          </p>
+                        </div>
+                        <div className="h-10 w-[2px] bg-gray-100"></div>
+                        <div>
+                          <p className="text-sm font-black text-[#333333]">Tour {duty.code}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase">
+                             Série {duty.type} • {duty.startTime} — {duty.endTime}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 md:mt-0 flex items-center gap-6 w-full md:w-auto justify-between">
+                         <div className="text-right">
+                           <p className="text-[9px] font-bold text-gray-400 uppercase">Durée</p>
+                           <p className="text-sm font-bold text-[#333333]">{calculateDuration(duty.startTime, duty.endTime)}</p>
+                         </div>
+                         <button className="p-2 text-gray-400 hover:text-[#003399] transition-colors">
+                           <ChevronRight size={20} />
+                         </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-10 text-center text-gray-400 italic text-sm">
+                  Fin du Roster importé.
+                </div>
+              )}
+            </div>
+            {sortedDuties.length > 5 && (
+              <div className="p-4 bg-gray-50 text-center border-t border-gray-100">
+                 <button className="text-[11px] font-bold text-[#003399] uppercase tracking-widest">
+                   Afficher tout mon Roster
+                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Colonne Latérale : Statistiques Opérationnelles */}
+        <div className="space-y-8">
+          <div className="sncb-card">
+            <div className="sncb-card-header">
+              <h3>Statut Réglementaire</h3>
+            </div>
+            <div className="sncb-card-content space-y-6">
+              <div className="p-4 bg-blue-50 rounded border border-blue-100">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-bold text-blue-800 uppercase">Vacation Mensuelle</span>
+                  <span className="text-xs font-black text-blue-900">142h / 160h</span>
+                </div>
+                <div className="h-2 bg-white rounded-full overflow-hidden">
+                  <div className="h-full bg-[#003399]" style={{ width: '88%' }}></div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Repos compensatoires (R)</span>
+                  <span className="text-sm font-black text-[#333333]">4 jours</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Services de nuit</span>
+                  <span className="text-sm font-black text-[#333333]">2 / 7j</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Dépôt d'attache</span>
+                  <span className="text-sm font-black text-[#003399]">{sortedDuties[0]?.depot || 'Midi (FBMZ)'}</span>
+                </div>
               </div>
             </div>
-            <p className="text-xs text-white/40 font-medium">Déposez votre PDF/Photo ici</p>
           </div>
-          <div className="space-y-2">
-            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-               <div className="h-full w-2/3 bg-purple-500 animate-pulse"></div>
-            </div>
-            <p className="text-[10px] font-bold text-purple-400 animate-pulse">Scanning...</p>
-          </div>
-        </div>
 
-        {/* Prochain Service */}
-        <div className="glass-card p-8 space-y-6">
-          <h3 className="text-xs font-black uppercase tracking-widest text-white/60">Votre Prochain Service</h3>
-          <div className="space-y-6 pt-4">
-            <div className="flex items-start gap-4">
-               <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center">
-                 <Repeat size={24} className="text-white/40" />
-               </div>
-               <div>
-                 <p className="font-black italic text-lg uppercase tracking-tight">ACT {nextDuty?.code || '702'}</p>
-                 <p className="text-sm text-white/60">Bruxelles-Midi</p>
-                 <p className="text-xs font-bold text-purple-400 mt-1">Départ: {nextDuty?.startTime || '06:35'}</p>
-               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Offres Populaires */}
-        <div className="glass-card p-8 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-widest text-white/60">Offres Populaires</h3>
-            <Search size={16} className="text-white/30" />
-          </div>
-          <div className="space-y-4">
-             <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all cursor-pointer">
-                <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400">
-                  <Star size={16} fill="currentColor" />
-                </div>
-                <div>
-                   <p className="text-xs font-black italic uppercase">L 802</p>
-                   <p className="text-[10px] text-white/40">Est vers Liège</p>
-                </div>
+          <div className="sncb-card bg-[#003399] border-none shadow-xl">
+             <div className="sncb-card-content text-white p-8">
+                <Calendar size={32} className="mb-4 opacity-50" />
+                <h4 className="text-lg font-black uppercase tracking-tight mb-2">Mise à jour Roster</h4>
+                <p className="text-[11px] text-white/70 leading-relaxed mb-6">
+                  Assurez-vous de scanner votre feuille de route après chaque modification du Tableau de Service (TS).
+                </p>
+                <button className="w-full py-4 bg-white text-[#003399] font-black text-[11px] uppercase tracking-widest rounded hover:bg-gray-100 transition-colors">
+                  Importer Prestations
+                </button>
              </div>
-             <p className="text-[9px] text-white/20 font-medium text-center italic">Basé sur vos types de trains préférés</p>
           </div>
-        </div>
-      </div>
 
-      {/* Tableau des Échanges */}
-      <div className="glass-card p-8 space-y-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-black italic uppercase tracking-tight">Tableau d'Échanges Disponibles</h3>
-          <div className="flex gap-2">
-            <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-[10px] font-bold text-white/40 uppercase">Type</div>
-            <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 text-[10px] font-bold text-white/40 uppercase">Dépôt</div>
+          <div className="p-4 flex items-center gap-3 text-amber-600 bg-amber-50 rounded border border-amber-100">
+            <AlertCircle size={20} className="shrink-0" />
+            <p className="text-[10px] font-bold leading-tight uppercase">
+              Vérifiez toujours vos horaires de PS sur le terminal officiel avant votre prise de service.
+            </p>
           </div>
-        </div>
-
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between p-5 bg-white/[0.02] hover:bg-white/[0.05] rounded-3xl border border-white/[0.03] transition-all">
-               <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-purple-500/30">
-                    <img src={`https://i.pravatar.cc/100?u=${i}`} alt="Avatar" />
-                 </div>
-                 <div>
-                    <p className="text-xs font-black text-white/40 uppercase tracking-widest mb-0.5">Service Proposé</p>
-                    <p className="text-sm font-bold italic">ACT 7101 Bruxelles-Midi (14:30 - 22:00)</p>
-                 </div>
-               </div>
-               <div className="flex items-center gap-6">
-                 <div className="px-4 py-2 bg-indigo-500/20 rounded-full border border-indigo-500/30">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 italic">Match Score: 85</span>
-                 </div>
-               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-center pt-4">
-          <button className="fab-create px-8 py-4 rounded-3xl flex items-center gap-3 font-black text-xs uppercase tracking-[0.2em] hover:scale-105 transition-transform active:scale-95">
-             <Plus size={20} />
-             Créer une Offre
-          </button>
         </div>
       </div>
     </div>

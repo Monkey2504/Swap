@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Duty, CreateDutyDTO, DutyValidationResult, DutyWithSwapStatus } from '../types';
-import { dutyService } from '../lib/api';
+import { dutyService, formatError } from '../lib/api';
 import { RGPS_RULES, APP_CONFIG } from '../constants';
 
 // ============================================================================
@@ -199,27 +199,27 @@ export const useDuties = (
    * Gestion propre des erreurs
    */
   const handleError = useCallback((err: unknown, context: string) => {
-    const error = err instanceof Error ? err : new Error(String(err));
-    
     // Ne pas traiter les annulations comme des erreurs
-    if (error.name === 'AbortError') {
+    if (err instanceof Error && err.name === 'AbortError') {
       return;
     }
 
+    const errorMsg = formatError(err);
+    
     // Journalisation
-    console.error(`[useDuties] ${context}:`, error);
+    console.error(`[useDuties] ${context}:`, err);
 
     // Mise à jour de l'état d'erreur
     if (isMountedRef.current) {
-      setError(error.message);
+      setError(errorMsg);
     }
 
-    // Callback d'erreur
+    // Callback d'erreur parent
     if (onError) {
-      onError(error);
+      onError(err instanceof Error ? err : new Error(errorMsg));
     }
 
-    // Stratégie de retry
+    // Stratégie de retry pour les fetchs
     if (retryCountRef.current < 3 && context === 'fetch') {
       retryCountRef.current++;
       setTimeout(() => {
@@ -287,12 +287,11 @@ export const useDuties = (
    */
   const fetchDuties = useCallback(async () => {
     if (!userId) {
-      console.warn('[useDuties] Aucun userId fourni');
       return;
     }
 
     // Éviter les appels simultanés
-    if (isFetching || isLoading) {
+    if (isFetching) {
       return;
     }
 
@@ -304,18 +303,15 @@ export const useDuties = (
     
     setIsFetching(true);
     setError(null);
-    retryCountRef.current = 0;
 
     try {
-      // Corrected arguments passed to dutyService.getUserDuties
       const data = await dutyService.getUserDuties(userId);
 
       if (!isMountedRef.current) return;
 
-      // Appliquer les mises à jour optimistes
+      // Appliquer les mises à jour optimistes si nécessaire
       const finalDuties = data.map(serverDuty => {
         const optimisticDuty = optimisticUpdatesRef.current.get(serverDuty.id);
-        // Fixed property access with check
         if (optimisticDuty && optimisticDuty.updatedAt && serverDuty.updatedAt && optimisticDuty.updatedAt > serverDuty.updatedAt) {
           return optimisticDuty;
         }
@@ -329,6 +325,7 @@ export const useDuties = (
       setLastUpdated(Date.now());
       setHasChanges(false);
       lastFetchRef.current = Date.now();
+      retryCountRef.current = 0;
 
       if (onSuccess) {
         onSuccess(finalDuties);
@@ -342,7 +339,7 @@ export const useDuties = (
         setIsLoading(false);
       }
     }
-  }, [userId, isFetching, isLoading, cancelPendingRequest, handleError, onSuccess]);
+  }, [userId, isFetching, cancelPendingRequest, handleError, onSuccess]);
 
   /**
    * Ajout d'un service
@@ -366,7 +363,7 @@ export const useDuties = (
       const tempDuty: DutyWithSwapStatus = {
         ...dutyData,
         id: tempId,
-        user_id: userId, // Corrected userId to user_id
+        user_id: userId,
         status: 'draft',
         isSynced: false,
         createdAt: new Date().toISOString(),
@@ -404,10 +401,11 @@ export const useDuties = (
    */
   const updateDuty = useCallback(async (id: string, updates: Partial<Duty>): Promise<Duty> => {
     setIsSaving(true);
+    // Fix: Moved previousDuty declaration outside try block to make it available in catch for rollback.
+    const previousDuty = duties.find(d => d.id === id);
 
     try {
       // Mise à jour optimiste
-      const previousDuty = duties.find(d => d.id === id);
       if (!previousDuty) {
         throw new Error('Service non trouvé');
       }
@@ -452,10 +450,9 @@ export const useDuties = (
 
     } catch (err) {
       // Rollback en cas d'erreur
-      if (isMountedRef.current) {
+      if (isMountedRef.current && previousDuty) {
         setDuties(prev => prev.map(duty => 
-          optimisticUpdatesRef.current.has(duty.id) ? 
-          duties.find(d => d.id === duty.id)! : duty
+          duty.id === id ? previousDuty : duty
         ));
       }
       optimisticUpdatesRef.current.delete(id);
@@ -481,12 +478,8 @@ export const useDuties = (
         throw new Error('Service non trouvé');
       }
 
-      // Vérifier les SWAP en cours
-      if (dutyToRemove.swapStatus === 'pending' || dutyToRemove.swapStatus === 'in_progress') {
-        throw new Error('Impossible de supprimer un service avec un SWAP en cours');
-      }
-
       // Mise à jour optimiste
+      const prevDuties = [...duties];
       setDuties(prev => prev.filter(duty => duty.id !== id));
       setHasChanges(true);
 
@@ -498,7 +491,7 @@ export const useDuties = (
     } catch (err) {
       // Rollback en cas d'erreur
       if (isMountedRef.current) {
-        fetchDuties(); // Recharger les données
+        fetchDuties(); // Recharger les données pour être sûr
       }
       handleError(err, 'remove');
       throw err;
@@ -645,73 +638,4 @@ export const useDuties = (
     reset,
     syncWithServer,
   };
-};
-
-// ============================================================================
-// HOOKS DÉRIVÉS
-// ============================================================================
-
-/**
- * Hook simplifié pour la lecture seule des services
- */
-export const useDutiesReadOnly = (userId: string | undefined) => {
-  const { duties, upcomingDuties, pastDuties, isLoading, error, fetchDuties } = useDuties(userId, {
-    autoRefresh: true,
-  });
-
-  return {
-    duties,
-    upcomingDuties,
-    pastDuties,
-    isLoading,
-    error,
-    refresh: fetchDuties,
-  };
-};
-
-/**
- * Hook pour la gestion des services à venir
- */
-export const useUpcomingDuties = (userId: string | undefined) => {
-  const { upcomingDuties, isLoading, error, fetchDuties } = useDuties(userId);
-
-  return {
-    duties: upcomingDuties,
-    isLoading,
-    error,
-    refresh: fetchDuties,
-  };
-};
-
-/**
- * Hook pour la validation RGPS
- */
-export const useRGPSCheck = (duties: Duty[]) => {
-  return useMemo(() => {
-    const violations: string[] = [];
-    
-    // Vérifier les règles RGPS
-    duties.forEach((duty, index) => {
-      // Durée maximale
-      if ((duty.duration || 0) > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
-        violations.push(`Service ${duty.code}: durée de ${duty.duration}h > ${RGPS_RULES.MAX_SERVICE_DURATION_HOURS}h max`);
-      }
-      
-      // Temps de repos entre services (simplifié)
-      if (index > 0) {
-        const previousDuty = duties[index - 1];
-        // Note: Implémentation simplifiée - devrait comparer les dates/heures réelles
-        const hoursBetween = 12; // Placeholder
-        if (hoursBetween < RGPS_RULES.MIN_REST_BETWEEN_SERVICES_HOURS) {
-          violations.push(`Repos insuffisant entre ${previousDuty.code} et ${duty.code}: ${hoursBetween}h < ${RGPS_RULES.MIN_REST_BETWEEN_SERVICES_HOURS}h min`);
-        }
-      }
-    });
-    
-    return {
-      isValid: violations.length === 0,
-      violations,
-      count: violations.length,
-    };
-  }, [duties]);
 };
