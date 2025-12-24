@@ -1,4 +1,5 @@
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+
+import React, { Component, ReactNode, ErrorInfo, useState, useCallback } from 'react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -24,7 +25,7 @@ interface ErrorBoundaryState {
  * - Stratégie de récupération hiérarchique
  * - Journalisation structurée
  */
-// Fix: Use Component explicitly and use named ErrorInfo type to ensure inheritance properties are recognized.
+// Fix: Import Component directly and extend it to ensure state and props are correctly typed.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private static MAX_RECOVERY_ATTEMPTS = 3;
   private static RECOVERY_COOLDOWN_MS = 5000; // 5 secondes entre les erreurs
@@ -33,6 +34,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    
+    // Fix: State initialization within constructor now recognized via inheritance from Component.
     this.state = {
       hasError: false,
       error: null,
@@ -106,8 +109,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
    * Journalisation structurée des erreurs
    */
   private logErrorToService(error: Error, metadata: Record<string, any> = {}) {
+    // Fix: state access works correctly because the class extends Component.
+    const currentState = this.state;
     const logEntry = {
-      incidentId: this.state.incidentId,
+      incidentId: currentState.incidentId,
       timestamp: new Date().toISOString(),
       component: 'ErrorBoundary',
       error: {
@@ -118,14 +123,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       userAgent: navigator.userAgent,
       url: window.location.href,
       state: {
-        recoveryAttempts: this.state.recoveryAttempts,
-        lastErrorTime: this.state.lastErrorTime,
+        recoveryAttempts: currentState.recoveryAttempts,
+        lastErrorTime: currentState.lastErrorTime,
       },
       metadata,
     };
 
     // Envoi à un service de logging (console en développement)
-    console.error('[ErrorBoundary] Incident:', this.state.incidentId, logEntry);
+    console.error('[ErrorBoundary] Incident:', currentState.incidentId, logEntry);
 
     // En production, envoyer à votre service de monitoring
     if (process.env.NODE_ENV === 'production') {
@@ -166,19 +171,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
    * Capture les informations d'erreur détaillées
    */
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Ne pas utiliser setState ici pour éviter les boucles
-    // Utiliser directement this.state pour la journalisation
+    // Fix: Access to state and props works correctly within Component lifecycle method.
+    const { incidentId } = this.state;
+    const { onError } = this.props;
+
     this.logErrorToService(error, {
       type: 'react_error',
       componentStack: errorInfo.componentStack,
     });
 
     // Appeler le callback parent si fourni
-    if (this.props.onError) {
-      this.props.onError(error, errorInfo);
+    if (onError) {
+      onError(error, errorInfo);
     }
 
-    // Mettre à jour l'état avec les informations d'erreur
+    // Fix: setState is now available from Component base class.
     this.setState({
       errorInfo,
     });
@@ -189,10 +196,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    // Fix: props and state access works correctly within Component lifecycle method.
+    const { resetOnChange, children } = this.props;
+    const { hasError } = this.state;
+
     // Réinitialiser l'erreur si les props changent (navigation, etc.)
-    if (this.props.resetOnChange && 
-        this.props.children !== prevProps.children && 
-        this.state.hasError) {
+    if (resetOnChange && 
+        children !== prevProps.children && 
+        hasError) {
       this.resetErrorState();
     }
   }
@@ -205,6 +216,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
    * Réinitialise l'état d'erreur
    */
   private resetErrorState() {
+    // Fix: setState is now available from Component base class.
     this.setState({
       hasError: false,
       error: null,
@@ -220,6 +232,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
    */
   private handleManualRetry() {
     const now = Date.now();
+    // Fix: State access recognized correctly.
     const { lastErrorTime, recoveryAttempts } = this.state;
 
     // Vérifier le cooldown entre les tentatives
@@ -230,13 +243,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     // Limiter le nombre de tentatives
     if (recoveryAttempts >= ErrorBoundary.MAX_RECOVERY_ATTEMPTS) {
+      // Fix: setState call works.
       this.setState({
         isPermanentFailure: true,
       });
       return;
     }
 
-    // Tentative de récupération douce
+    // Fix: Functional setState works correctly.
     this.setState(prevState => ({
       hasError: false,
       error: null,
@@ -271,15 +285,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // Option 1: Rechargement doux (garder la session)
     window.location.hash = '#recovery';
     window.location.reload();
-
-    // Option 2: Redirection vers la page d'accueil
-    // window.location.href = window.location.origin;
   }
 
   /**
    * Affiche le composant de fallback personnalisé ou l'UI par défaut
    */
   render() {
+    // Fix: Props and State access recognized correctly in render.
     const { hasError, error, errorInfo, incidentId, recoveryAttempts, isPermanentFailure } = this.state;
     const { children, fallback } = this.props;
 
@@ -414,13 +426,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
  * Hook personnalisé pour utiliser le ErrorBoundary de manière déclarative
  */
 export function useErrorBoundary() {
-  const [error, setError] = React.useState<Error | null>(null);
+  const [error, setError] = useState<Error | null>(null);
 
-  const showBoundary = React.useCallback((err: Error) => {
+  const showBoundary = useCallback((err: Error) => {
     setError(err);
   }, []);
 
-  const resetError = React.useCallback(() => {
+  const resetError = useCallback(() => {
     setError(null);
   }, []);
 

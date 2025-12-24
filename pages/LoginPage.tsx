@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { getSupabase } from '../lib/supabase';
 import { formatError } from '../lib/api';
-import { Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ShieldCheck, Train } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess?: (user: User) => Promise<void>;
@@ -25,14 +25,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     setLoading(true);
     try {
+      let result;
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        if (data.user && onLoginSuccess) await onLoginSuccess(data.user);
+        result = await supabase.auth.signUp({ email, password });
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        if (data.user && onLoginSuccess) await onLoginSuccess(data.user);
+        result = await supabase.auth.signInWithPassword({ email, password });
+      }
+      
+      if (result.error) throw result.error;
+      if (result.data.user && onLoginSuccess) {
+        await onLoginSuccess(result.data.user);
       }
     } catch (error: any) {
       setAuthError(formatError(error));
@@ -42,53 +44,85 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="w-full max-w-sm glass-card p-10 space-y-8 animate-in slide-in-from-bottom-10 duration-700">
+    <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-10 space-y-8 animate-slide-up border border-gray-100">
       <div className="text-center space-y-4">
-        <div className="w-16 h-16 bg-purple-500 rounded-3xl flex items-center justify-center shadow-xl shadow-purple-500/30 mx-auto">
-          <ShieldCheck size={32} className="text-white" />
+        <div className="w-16 h-16 bg-sncb-blue rounded-xl flex items-center justify-center mx-auto shadow-lg shadow-sncb-blue/20">
+          <Train size={32} className="text-white" />
         </div>
         <div className="space-y-1">
-          <h2 className="text-2xl font-black italic tracking-tighter text-white uppercase leading-none">Accès Bord</h2>
-          <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Communauté SNCB</p>
+          <h2 className="text-2xl font-black text-sncb-blue uppercase tracking-tight">
+            Swap<span className="text-gray-400">ACT</span>
+          </h2>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Portail Agent Certifié SNCB</p>
         </div>
       </div>
 
-      <div className="flex bg-white/5 rounded-2xl p-1 border border-white/5">
-        <button onClick={() => setIsSignUp(false)} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!isSignUp ? 'bg-white/10 text-white' : 'text-white/30'}`}>Connexion</button>
-        <button onClick={() => setIsSignUp(true)} className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${isSignUp ? 'bg-white/10 text-white' : 'text-white/30'}`}>Inscription</button>
+      <div className="flex bg-gray-100 rounded-lg p-1">
+        <button 
+          onClick={() => setIsSignUp(false)} 
+          className={`flex-1 py-2 rounded-md text-xs font-bold uppercase transition-all ${!isSignUp ? 'bg-white text-sncb-blue shadow-sm' : 'text-gray-500'}`}
+        >
+          Connexion
+        </button>
+        <button 
+          onClick={() => setIsSignUp(true)} 
+          className={`flex-1 py-2 rounded-md text-xs font-bold uppercase transition-all ${isSignUp ? 'bg-white text-sncb-blue shadow-sm' : 'text-gray-500'}`}
+        >
+          Inscription
+        </button>
       </div>
 
-      <form onSubmit={handleAuth} className="space-y-4">
-        {authError && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-[9px] text-red-400 font-bold uppercase text-center">{authError}</div>}
+      <form onSubmit={handleAuth} className="space-y-5">
+        {authError && (
+          <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-600 font-semibold text-center">
+            {authError}
+          </div>
+        )}
         
         <div className="space-y-4">
-          <input 
-            type="email" 
-            placeholder="E-mail professionnel" 
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-          <div className="relative">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail professionnel</label>
+            <input 
+              type="email" 
+              placeholder="agent@sncb.be" 
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:outline-none focus:border-sncb-blue focus:ring-1 focus:ring-sncb-blue transition-all"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1 relative">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mot de passe</label>
             <input 
               type={showPassword ? "text" : "password"} 
-              placeholder="Mot de passe" 
-              className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-bold text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all"
+              placeholder="••••••••" 
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:outline-none focus:border-sncb-blue focus:ring-1 focus:ring-sncb-blue transition-all"
               value={password}
               onChange={e => setPassword(e.target.value)}
+              required
             />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/50">
+            <button 
+              type="button" 
+              onClick={() => setShowPassword(!showPassword)} 
+              className="absolute right-3 bottom-3 text-gray-400 hover:text-sncb-blue"
+            >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
         </div>
 
-        <button disabled={loading} className="w-full btn-gradient py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] text-white flex items-center justify-center gap-3 active:scale-95 transition-all">
-          {loading ? <Loader2 size={20} className="animate-spin" /> : (isSignUp ? "Créer mon compte" : "Entrer dans l'espace")}
+        <button 
+          disabled={loading} 
+          className="w-full py-4 bg-sncb-blue text-white rounded-lg font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-sncb-blue-light transition-all shadow-lg shadow-sncb-blue/20 disabled:opacity-70"
+        >
+          {loading ? <Loader2 size={18} className="animate-spin" /> : (isSignUp ? "Créer mon compte" : "Ouvrir ma session")}
         </button>
       </form>
       
-      <p className="text-[9px] text-white/20 font-medium text-center uppercase tracking-widest leading-relaxed">Réservé aux agents statutaires et contractuels SNCB</p>
+      <div className="pt-4 flex items-center justify-center gap-2 text-gray-400">
+        <ShieldCheck size={14} />
+        <p className="text-[10px] font-bold uppercase tracking-widest">Connexion sécurisée Cloud SNCB</p>
+      </div>
     </div>
   );
 };

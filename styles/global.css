@@ -1,151 +1,142 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root {
   --sncb-blue: #003399;
-  --sncb-red: #EB0000;
-  --sncb-grey-light: #F2F2F2;
-  --sncb-grey-dark: #333333;
-  --sncb-border: #D1D1D1;
-  --white: #FFFFFF;
+  --sncb-blue-light: #0055CC;
+  --sncb-blue-dark: #002266;
+  --app-bg: #F3F4F6;
+  --card-bg: #FFFFFF;
+  --text-main: #1F2937;
+  --text-muted: #6B7280;
+  --accent: #003399;
+  --danger: #DC2626;
+  --success: #059669;
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, sans-serif;
-  background-color: #E5E7EB;
-  color: var(--sncb-grey-dark);
+  padding: 0;
+  background-color: var(--app-bg);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Layout Container */
+/* Container principal avec Sidebar fixe */
 .app-container {
   display: flex;
   height: 100vh;
   width: 100vw;
-  background-color: #F3F4F6;
+  overflow: hidden;
 }
 
-/* Sidebar SNCB */
 .sidebar-sncb {
   width: 280px;
-  background-color: var(--sncb-blue);
-  color: var(--white);
+  background: var(--sncb-blue);
+  color: white;
   display: flex;
   flex-direction: column;
-  padding: 0;
-  box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+  z-index: 50;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-logo {
-  padding: 40px 30px;
-  background-color: rgba(255,255,255,0.05);
+  padding: 32px;
   display: flex;
   align-items: center;
   gap: 12px;
+  background: rgba(0, 0, 0, 0.1);
 }
 
-.sidebar-logo img {
-  height: 30px;
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px;
+  position: relative;
+  background-image: linear-gradient(180deg, rgba(0, 51, 153, 0.03) 0%, rgba(243, 244, 246, 0) 300px);
+}
+
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
 .nav-item-sncb {
-  padding: 16px 30px;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 12px;
+  padding: 16px 24px;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 14px;
   font-weight: 600;
-  color: rgba(255,255,255,0.7);
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   border-left: 4px solid transparent;
 }
 
 .nav-item-sncb:hover {
-  background-color: rgba(255,255,255,0.1);
-  color: var(--white);
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .nav-item-sncb.active {
-  background-color: rgba(255,255,255,0.15);
-  color: var(--white);
-  border-left-color: var(--white);
+  color: white;
+  background: rgba(255, 255, 255, 0.15);
+  border-left-color: white;
 }
 
-/* Main Content */
-.main-content {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 40px;
-}
-
-/* Card Style */
-.sncb-card {
-  background: var(--white);
-  border: 1px solid var(--sncb-border);
+.btn-sncb-primary {
+  background: var(--sncb-blue);
+  color: white;
+  font-weight: 700;
+  padding: 12px 24px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  margin-bottom: 24px;
-}
-
-.sncb-card-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--sncb-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.sncb-card-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 800;
+  transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--sncb-blue);
-}
-
-.sncb-card-content {
-  padding: 24px;
-}
-
-/* Buttons */
-.btn-sncb-primary {
-  background-color: var(--sncb-blue);
-  color: var(--white);
-  padding: 12px 24px;
-  border-radius: 4px;
-  font-weight: 700;
-  font-size: 13px;
-  text-transform: uppercase;
-  transition: opacity 0.2s;
+  font-size: 12px;
 }
 
 .btn-sncb-primary:hover {
-  opacity: 0.9;
+  background: var(--sncb-blue-light);
+  transform: translateY(-1px);
 }
 
 .btn-sncb-outline {
   border: 2px solid var(--sncb-blue);
   color: var(--sncb-blue);
-  padding: 10px 22px;
-  border-radius: 4px;
   font-weight: 700;
-  font-size: 13px;
+  padding: 10px 22px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
   text-transform: uppercase;
+  font-size: 12px;
 }
 
-/* Status Badges */
-.badge-sncb {
-  padding: 4px 12px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
+.btn-sncb-outline:hover {
+  background: var(--sncb-blue);
+  color: white;
 }
 
-.badge-info { background-color: #E0E7FF; color: #4338CA; }
-.badge-success { background-color: #DCFCE7; color: #15803D; }
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: fadeIn 0.4s ease-out forwards;
+}
 
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }

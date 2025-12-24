@@ -6,50 +6,62 @@ export { swapService } from './swapService';
 export { preferencesService } from './preferencesService';
 
 /**
- * Formate une erreur pour éviter l'affichage de [object Object]
- * Spécialement conçu pour les retours Supabase et les exceptions JS
+ * Formate une erreur de manière exhaustive pour garantir un affichage textuel propre.
+ * Empêche systématiquement l'affichage de "[object Object]" en inspectant les structures
+ * d'erreurs courantes (Supabase, PostgREST, etc.).
  */
 export const formatError = (err: any): string => {
-  if (!err) return "Une erreur inconnue est survenue.";
+  if (!err) return "Incident technique indéterminé.";
   
-  // Si c'est déjà une chaîne
+  // Cas d'une chaîne directe
   if (typeof err === 'string') return err;
   
-  // Gestion récursive si l'objet contient une propriété 'error' (cas typique Supabase)
-  if (err.error && typeof err.error === 'object') {
-    return formatError(err.error);
-  }
-
-  // Erreurs Supabase / PostgREST (PostgreSQL)
-  if (err.message && typeof err.message === 'string') {
-    if (err.message.includes("[object Object]")) {
-      // On cherche des détails plus profonds
-      return err.details || err.hint || "Erreur de communication avec le serveur SNCB Cloud.";
-    }
-    
-    // Traductions SNCB Contextuelles
-    const msg = err.message.toLowerCase();
-    if (msg.includes('invalid login credentials')) return "Identifiants (E-mail/Pass) incorrects.";
-    if (msg.includes('user already registered')) return "Un agent utilise déjà cet e-mail.";
-    if (msg.includes('network error')) return "Connexion réseau instable. Vérifiez votre 4G/5G.";
-    if (msg.includes('jwt expired')) return "Votre session a expiré. Veuillez vous reconnecter.";
-    
+  // Si c'est un objet Error standard
+  if (err instanceof Error) {
     return err.message;
   }
 
-  // Si c'est un objet brut sans propriété 'message'
-  if (typeof err === 'object') {
-    if (err.details) return String(err.details);
-    if (err.code) return `Erreur Technique (Code: ${err.code})`;
+  // Fonction récursive pour chercher un message textuel dans un objet inconnu
+  const findMessage = (obj: any): string | null => {
+    if (!obj || typeof obj !== 'object') return null;
     
-    // Fallback : Stringify sécurisé
-    try {
-      const str = JSON.stringify(err);
-      if (str !== "{}" && str !== "null") return str;
-    } catch (e) {
-      // ignore
+    // Propriétés standard dans l'ordre de pertinence
+    const keys = ['message', 'error_description', 'error', 'details', 'hint', 'msg'];
+    for (const key of keys) {
+      const val = obj[key];
+      if (typeof val === 'string' && val.trim() !== '' && val !== '[object Object]') {
+        return val;
+      }
     }
+
+    // Si on a une propriété 'error' qui est elle-même un objet (cas Supabase)
+    if (obj.error && typeof obj.error === 'object') {
+      return findMessage(obj.error);
+    }
+
+    return null;
+  };
+
+  const extracted = findMessage(err);
+  if (extracted) {
+    // Traductions SNCB Contextuelles
+    const msg = extracted.toLowerCase();
+    if (msg.includes('invalid login credentials')) return "Identifiants (E-mail ou Mot de passe) erronés.";
+    if (msg.includes('user already registered')) return "Un agent est déjà enregistré avec cet e-mail.";
+    if (msg.includes('network error') || msg.includes('fetch')) return "Connexion au Cloud SNCB instable.";
+    if (msg.includes('email not confirmed')) return "Veuillez confirmer votre e-mail professionnel.";
+    return extracted;
   }
 
-  return "Une erreur technique est survenue. Contactez le support si le problème persiste.";
+  // Fallback ultime : sérialisation JSON si l'objet n'est pas vide
+  try {
+    const stringified = JSON.stringify(err);
+    if (stringified !== "{}" && stringified !== "null") {
+      return `Détail technique : ${stringified.substring(0, 150)}`;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  return "Erreur technique SNCB (Code 500). Veuillez contacter le support.";
 };
