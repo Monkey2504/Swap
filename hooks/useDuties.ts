@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Duty, CreateDutyDTO, DutyValidationResult, DutyWithSwapStatus } from '../types';
 import { dutyService } from '../lib/api';
@@ -154,7 +155,7 @@ export const useDuties = (
       }
 
       // Vérifications RGPS basiques
-      if (duty.duration > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
+      if ((duty.duration || 0) > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
         violations.push(`Service ${duty.code}: durée excessive (${duty.duration}h)`);
       }
     });
@@ -306,16 +307,16 @@ export const useDuties = (
     retryCountRef.current = 0;
 
     try {
-      const data = await dutyService.getUserDuties(userId, {
-        signal: abortControllerRef.current.signal,
-      });
+      // Corrected arguments passed to dutyService.getUserDuties
+      const data = await dutyService.getUserDuties(userId);
 
       if (!isMountedRef.current) return;
 
       // Appliquer les mises à jour optimistes
       const finalDuties = data.map(serverDuty => {
         const optimisticDuty = optimisticUpdatesRef.current.get(serverDuty.id);
-        if (optimisticDuty && optimisticDuty.updatedAt > serverDuty.updatedAt) {
+        // Fixed property access with check
+        if (optimisticDuty && optimisticDuty.updatedAt && serverDuty.updatedAt && optimisticDuty.updatedAt > serverDuty.updatedAt) {
           return optimisticDuty;
         }
         return serverDuty;
@@ -324,7 +325,7 @@ export const useDuties = (
       // Nettoyer les mises à jour optimistes appliquées
       optimisticUpdatesRef.current.clear();
 
-      setDuties(finalDuties);
+      setDuties(finalDuties as DutyWithSwapStatus[]);
       setLastUpdated(Date.now());
       setHasChanges(false);
       lastFetchRef.current = Date.now();
@@ -365,7 +366,7 @@ export const useDuties = (
       const tempDuty: DutyWithSwapStatus = {
         ...dutyData,
         id: tempId,
-        userId,
+        user_id: userId, // Corrected userId to user_id
         status: 'draft',
         isSynced: false,
         createdAt: new Date().toISOString(),
@@ -692,7 +693,7 @@ export const useRGPSCheck = (duties: Duty[]) => {
     // Vérifier les règles RGPS
     duties.forEach((duty, index) => {
       // Durée maximale
-      if (duty.duration > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
+      if ((duty.duration || 0) > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
         violations.push(`Service ${duty.code}: durée de ${duty.duration}h > ${RGPS_RULES.MAX_SERVICE_DURATION_HOURS}h max`);
       }
       

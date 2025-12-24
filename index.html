@@ -1,221 +1,42 @@
+
 <!DOCTYPE html>
 <html lang="fr" data-theme="dark">
 <head>
-    <!-- ============================================================================
-         META TAGS ESSENTIELS
-         ============================================================================ -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     
-    <!-- ============================================================================
-         SÉCURITÉ & CONFORMITÉ
-         ============================================================================ -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
-        script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com;
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh;
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' https://fonts.gstatic.com;
         img-src 'self' data: https:;
         connect-src 'self' https://*.supabase.co https://*.googleapis.com;
         frame-src 'none';
         object-src 'none';
-        base-uri 'self';
-        form-action 'self';
     ">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
     
-    <!-- ============================================================================
-         INFORMATIONS SNCB & APPLICATION
-         ============================================================================ -->
-    <title>SwapACT | Échange de services entre agents SNCB</title>
-    <meta name="description" content="Plateforme communautaire sécurisée pour l'échange de services entre agents de bord SNCB. Simplifiez vos SWAP en respectant le RGPS.">
-    <meta name="keywords" content="SNCB, swap, échange, service, planning, conducteur, chef de train, RGPS, SNCB-SWAP">
-    <meta name="author" content="Équipe SwapACT - Communauté SNCB">
-    <meta name="robots" content="index, follow">
-    <meta name="googlebot" content="index, follow">
-    
-    <!-- ============================================================================
-         OPEN GRAPH & SOCIAL MEDIA
-         ============================================================================ -->
-    <meta property="og:title" content="SwapACT | Échange de services entre agents SNCB">
-    <meta property="og:description" content="Plateforme communautaire pour faciliter les échanges de services entre collègues SNCB">
-    <meta property="og:image" content="https://swapact.sncb.be/og-image.jpg">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Interface SwapACT - Plateforme d'échange de services SNCB">
-    <meta property="og:url" content="https://swapact.sncb.be">
-    <meta property="og:site_name" content="SwapACT">
-    <meta property="og:type" content="website">
-    <meta property="og:locale" content="fr_BE">
-    
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="SwapACT | Échange de services entre agents SNCB">
-    <meta name="twitter:description" content="Plateforme communautaire pour faciliter les échanges de services entre collègues SNCB">
-    <meta name="twitter:image" content="https://swapact.sncb.be/twitter-card.jpg">
-    <meta name="twitter:site" content="@SNCB">
-    <meta name="twitter:creator" content="@SNCB">
-    
-    <!-- ============================================================================
-         PWA & MOBILE
-         ============================================================================ -->
-    <meta name="application-name" content="SwapACT">
-    <meta name="apple-mobile-web-app-title" content="SwapACT">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
+    <title>SwapACT | Premium SNCB</title>
     <meta name="theme-color" content="#0d1117">
-    <meta name="msapplication-TileColor" content="#0d1117">
-    <meta name="msapplication-config" content="/browserconfig.xml">
     
-    <link rel="manifest" href="/manifest.json">
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#0d1117">
-    
-    <!-- ============================================================================
-         PRELOADS & PREFETCHS (PERFORMANCE)
-         ============================================================================ -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
-    <link rel="preconnect" href="https://mhipjaushqtszeokgdgn.supabase.co" crossorigin>
-    
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" as="style">
-    <link rel="preload" href="/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
-    
-    <!-- ============================================================================
-         STYLES
-         ============================================================================ -->
-    <!-- Option 1: CDN Tailwind avec SRI (pour développement) -->
-    <link rel="stylesheet" href="https://cdn.tailwindcss.com">
-    
-    <!-- Option 2: Tailwind local (recommandé pour production) -->
-    <!-- <link rel="stylesheet" href="/css/tailwind.css"> -->
-    
-    <!-- Police Inter (Google Fonts avec fallback local) -->
+    <link rel="preconnect" href="https://esm.sh" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
-    <!-- Styles inline critiques -->
     <style>
-        /* Font face avec fallback */
-        @font-face {
-            font-family: 'Inter Fallback';
-            src: local('Inter'), local('Segoe UI'), local('Roboto'), local('Arial');
-            ascent-override: 90%;
-            descent-override: 22.5%;
-            line-gap-override: 0%;
-            size-adjust: 105%;
-        }
-        
-        /* Variables CSS */
         :root {
             --sncb-blue: #003399;
-            --sncb-yellow: #FFD700;
             --premium-dark: #0d1117;
             --accent-purple: #a855f7;
-            --accent-cyan: #22d3ee;
-            --glass-white: rgba(255, 255, 255, 0.05);
-            --success-green: #10b981;
-            --warning-orange: #f59e0b;
-            --error-red: #ef4444;
         }
-        
-        /* Reset et styles de base */
-        *, *::before, *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        html {
-            scroll-behavior: smooth;
-            -webkit-text-size-adjust: 100%;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        
         body {
-            font-family: 'Inter', 'Inter Fallback', system-ui, -apple-system, sans-serif;
+            font-family: 'Inter', sans-serif;
             background: var(--premium-dark);
             color: #ffffff;
-            min-height: 100vh;
+            margin: 0;
             overflow-x: hidden;
-            line-height: 1.5;
         }
-        
-        /* Optimisations de performance */
-        img, video {
-            max-width: 100%;
-            height: auto;
-            display: block;
-        }
-        
-        /* Utilitaires Tailwind custom */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        
-        .glow-purple {
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-        }
-        
-        .glow-cyan {
-            box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
-        }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: rgba(168, 85, 247, 0.5);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(168, 85, 247, 0.7);
-        }
-        
-        /* Focus styles pour accessibilité */
-        :focus-visible {
-            outline: 2px solid var(--accent-purple);
-            outline-offset: 2px;
-        }
-        
-        /* Print styles */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            
-            body {
-                background: white;
-                color: black;
-            }
-        }
-        
-        /* Loading animation */
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        
         .loading-spinner {
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-top: 3px solid var(--accent-purple);
@@ -224,248 +45,51 @@
             height: 40px;
             animation: spin 1s linear infinite;
         }
-        
-        /* Rail-specific background */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
         .rail-bg {
-            background-image: 
-                linear-gradient(rgba(13, 17, 23, 0.95), rgba(13, 17, 23, 0.95)),
+            background-image: linear-gradient(rgba(13, 17, 23, 0.95), rgba(13, 17, 23, 0.95)),
                 url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M0,50 L100,50 M50,0 L50,100" stroke="rgba(168,85,247,0.1)" stroke-width="1" fill="none"/></svg>');
-            background-size: 100px 100px;
         }
     </style>
     
-    <!-- ============================================================================
-         CONFIGURATION TAILWIND (séparée pour la clarté)
-         ============================================================================ -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // Configuration Tailwind - version simplifiée et sécurisée
         tailwind.config = {
-            important: true,
-            corePlugins: {
-                preflight: true,
-            },
             theme: {
                 extend: {
                     colors: {
                         'sncb-blue': '#003399',
-                        'sncb-yellow': '#FFD700',
                         'premium-dark': '#0d1117',
-                        'glass-white': 'rgba(255, 255, 255, 0.05)',
                         'accent-purple': '#a855f7',
                         'accent-cyan': '#22d3ee',
-                        'success': '#10b981',
-                        'warning': '#f59e0b',
-                        'error': '#ef4444',
-                    },
-                    fontFamily: {
-                        'inter': ['Inter', 'system-ui', 'sans-serif'],
-                    },
-                    backgroundImage: {
-                        'railway': "url('/images/railway-bg.jpg')",
-                        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-                    },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'bounce-slow': 'bounce 2s infinite',
-                    },
-                    screens: {
-                        'xs': '475px',
-                        '3xl': '1920px',
-                    },
-                },
-            },
-            plugins: [],
+                    }
+                }
+            }
         }
     </script>
 </head>
 
-<body class="antialiased overflow-x-hidden rail-bg">
-    <!-- ============================================================================
-         FALLBACK POUR JAVASCRIPT DÉSACTIVÉ
-         ============================================================================ -->
-    <noscript>
-        <div class="min-h-screen flex items-center justify-center p-8">
-            <div class="max-w-md bg-white/10 backdrop-blur-sm rounded-3xl p-8 text-center border border-white/20">
-                <div class="w-16 h-16 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-400 text-3xl mx-auto mb-6">
-                    ⚠️
-                </div>
-                <h1 class="text-2xl font-black text-white mb-4">JavaScript requis</h1>
-                <p class="text-slate-300 mb-6">
-                    L'application SwapACT nécessite JavaScript pour fonctionner correctement.
-                    Veuillez activer JavaScript dans votre navigateur pour continuer.
-                </p>
-                <div class="space-y-3 text-sm text-slate-400">
-                    <p>Pour des raisons de sécurité et de fonctionnalité, JavaScript est obligatoire.</p>
-                    <p>Si vous utilisez une extension qui bloque JavaScript, veuillez l'ajuster pour ce site.</p>
-                </div>
-            </div>
-        </div>
-    </noscript>
+<body class="antialiased rail-bg">
+    <div id="root"></div>
     
-    <!-- ============================================================================
-         ROOT ELEMENT POUR REACT
-         ============================================================================ -->
-    <div id="root" role="main" aria-live="polite" aria-busy="true">
-        <!-- État de chargement initial -->
-        <div class="h-screen w-full flex flex-col items-center justify-center gap-6">
-            <div class="loading-spinner"></div>
-            <div class="text-center space-y-2">
-                <p class="text-sm font-black uppercase tracking-widest text-accent-purple animate-pulse">
-                    Initialisation SwapACT
-                </p>
-                <p class="text-xs text-slate-500 font-medium">
-                    Chargement de l'espace communautaire SNCB...
-                </p>
-            </div>
-        </div>
-    </div>
-    
-    <!-- ============================================================================
-         IMPORT MAP POUR ES MODULES
-         ============================================================================ -->
     <script type="importmap">
-    {
-        "imports": {
-            "react": "https://esm.sh/react@19.2.3",
-            "react-dom/client": "https://esm.sh/react-dom@19.2.3/client",
-            "react-dom/": "https://esm.sh/react-dom@19.2.3/",
-            "react/": "https://esm.sh/react@19.2.3/",
-            "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.89.0",
-            "@google/genai": "https://esm.sh/@google/genai@1.34.0",
-            "lucide-react": "https://esm.sh/lucide-react@0.562.0"
-        }
-    }
-    </script>
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@19.2.3/client",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.89.0",
+    "@google/genai": "https://esm.sh/@google/genai@1.34.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.562.0",
+    "uuid": "https://esm.sh/uuid@11.0.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
     
-    <!-- ============================================================================
-         SCRIPT PRINCIPAL (différé)
-         ============================================================================ -->
-    <script type="module" src="/src/index.tsx" defer></script>
-    
-    <!-- ============================================================================
-         SERVICE WORKER & PWA
-         ============================================================================ -->
-    <script>
-        // Enregistrement du Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').then(
-                    (registration) => {
-                        console.log('Service Worker enregistré avec succès:', registration.scope);
-                    },
-                    (error) => {
-                        console.log('Échec enregistrement Service Worker:', error);
-                    }
-                );
-            });
-        }
-        
-        // Détection du mode hors ligne
-        window.addEventListener('offline', () => {
-            console.log('Application hors ligne');
-            if (window.showOfflineNotification) {
-                window.showOfflineNotification();
-            }
-        });
-        
-        window.addEventListener('online', () => {
-            console.log('Application de nouveau en ligne');
-            if (window.showOnlineNotification) {
-                window.showOnlineNotification();
-            }
-        });
-        
-        // Gestionnaire d'erreurs global
-        window.addEventListener('error', (event) => {
-            console.error('Erreur globale:', event.error);
-            
-            // Envoyer l'erreur à votre service de monitoring (ex: Sentry)
-            if (window._SENTRY_) {
-                window._SENTRY_.captureException(event.error);
-            }
-        });
-        
-        // Gestion des promesses non catchées
-        window.addEventListener('unhandledrejection', (event) => {
-            console.error('Promesse non catchée:', event.reason);
-            
-            if (window._SENTRY_) {
-                window._SENTRY_.captureException(event.reason);
-            }
-        });
-    </script>
-    
-    <!-- ============================================================================
-         ANALYTICS (optionnel, RGPD compliant)
-         ============================================================================ -->
-    <script type="text/plain" data-cookiecategory="analytics">
-        // Exemple avec Plausible Analytics (privacy-friendly)
-        // window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }
-        
-        // Seulement si l'utilisateur a accepté les cookies
-        if (localStorage.getItem('cookies_accepted') === 'true') {
-            // Initialiser analytics
-        }
-    </script>
-    
-    <!-- ============================================================================
-         COOKIE CONSENT (RGPD)
-         ============================================================================ -->
-    <div id="cookie-consent" class="hidden fixed bottom-0 left-0 right-0 bg-premium-dark border-t border-white/10 p-4 z-50">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="text-sm text-slate-300">
-                <p class="font-medium mb-1">Respect de votre vie privée</p>
-                <p class="text-slate-400 text-xs">
-                    SwapACT utilise des cookies essentiels au fonctionnement et des cookies optionnels 
-                    pour améliorer votre expérience. Vos données ne sont jamais vendues à des tiers.
-                </p>
-            </div>
-            <div class="flex gap-3">
-                <button onclick="acceptCookies()" class="px-4 py-2 bg-accent-purple text-white rounded-xl text-sm font-medium hover:bg-accent-purple/80 transition-colors">
-                    Accepter
-                </button>
-                <button onclick="declineCookies()" class="px-4 py-2 bg-white/5 text-slate-300 rounded-xl text-sm font-medium hover:bg-white/10 transition-colors">
-                    Refuser
-                </button>
-                <a href="/privacy" class="px-4 py-2 text-slate-400 text-sm font-medium hover:text-white transition-colors">
-                    Politique de confidentialité
-                </a>
-            </div>
-        </div>
-    </script>
-    
-    <script>
-        // Gestion des cookies RGPD
-        function acceptCookies() {
-            localStorage.setItem('cookies_accepted', 'true');
-            document.getElementById('cookie-consent').classList.add('hidden');
-            // Charger les scripts analytics
-            loadAnalytics();
-        }
-        
-        function declineCookies() {
-            localStorage.setItem('cookies_accepted', 'false');
-            document.getElementById('cookie-consent').classList.add('hidden');
-        }
-        
-        function loadAnalytics() {
-            // Charger les scripts analytics seulement si acceptés
-            const analyticsScript = document.querySelector('script[data-cookiecategory="analytics"]');
-            if (analyticsScript) {
-                const newScript = document.createElement('script');
-                newScript.textContent = analyticsScript.textContent;
-                document.head.appendChild(newScript);
-            }
-        }
-        
-        // Afficher le banner si pas encore de décision
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!localStorage.getItem('cookies_accepted')) {
-                document.getElementById('cookie-consent').classList.remove('hidden');
-            } else if (localStorage.getItem('cookies_accepted') === 'true') {
-                loadAnalytics();
-            }
-        });
-    </script>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>

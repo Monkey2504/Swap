@@ -33,7 +33,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       setEditLastName(user.lastName || '');
       setEditDepot(user.depot || '');
     }
-  }, [user?.id]);
+  }, [user]);
 
   if (!user) {
     return (
@@ -128,7 +128,8 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Votre Dépôt</label>
                 <select value={editDepot} onChange={e => setEditDepot(e.target.value)} className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none font-bold text-sm focus:ring-4 focus:ring-sncb-blue/5">
                   <option value="" disabled>Choisir mon dépôt...</option>
-                  {DEPOTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {/* Fixed DEPOTS mapping to use code and name strings */}
+                  {DEPOTS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
                 </select>
               </div>
            </div>
@@ -167,7 +168,8 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                 <input type="text" value={editFirstName} onChange={e => setEditFirstName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border-none font-bold text-sm text-white" placeholder="Prénom" />
                 <input type="text" value={editLastName} onChange={e => setEditLastName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border-none font-bold text-sm text-white" placeholder="Nom" />
                 <select value={editDepot} onChange={e => setEditDepot(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border-none font-bold text-sm text-white">
-                  {DEPOTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {/* Fixed DEPOTS mapping for profile edit */}
+                  {DEPOTS.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
                 </select>
                 <button onClick={handleUpdateProfile} className="w-full py-3 bg-accent-purple text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg">Enregistrer</button>
                 <button onClick={() => setIsEditing(false)} className="w-full py-2 text-[10px] font-black text-slate-400 uppercase">Annuler</button>

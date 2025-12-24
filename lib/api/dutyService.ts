@@ -11,6 +11,7 @@ class DutyService {
     return client;
   }
 
+  // Updated getUserDuties to fix call in hook
   async getUserDuties(userId: string): Promise<Duty[]> {
     const client = this.checkConfig();
     const { data, error } = await client
@@ -28,6 +29,20 @@ class DutyService {
     const { data, error } = await client
       .from('duties')
       .insert(duty)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  // Added updateDuty to fix call in hook
+  async updateDuty(id: string, updates: Partial<Duty>): Promise<Duty> {
+    const client = this.checkConfig();
+    const { data, error } = await client
+      .from('duties')
+      .update(updates)
+      .eq('id', id)
       .select()
       .single();
     

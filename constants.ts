@@ -1,3 +1,4 @@
+
 import { Duty, PreferenceLevel, UserPreference, UserProfile, DepotRole, Station } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,28 +30,28 @@ export interface DepotConfig {
 
 export const DEPOTS: DepotConfig[] = [
   // Bruxelles
-  { code: 'FBMZ', name: 'Bruxelles-Midi', region: 'Bruxelles' },
-  { code: 'FBN', name: 'Bruxelles-Nord', region: 'Bruxelles' },
-  { code: 'FBC', name: 'Bruxelles-Central', region: 'Bruxelles' },
-  { code: 'FLX', name: 'Bruxelles-Luxembourg', region: 'Bruxelles' },
-  { code: 'FBSM', name: 'Bruxelles-Schuman', region: 'Bruxelles' },
+  { code: 'FBMZ', name: 'Bruxelles-Midi', region: 'Bruxelles', timezone: 'Europe/Brussels' },
+  { code: 'FBN', name: 'Bruxelles-Nord', region: 'Bruxelles', timezone: 'Europe/Brussels' },
+  { code: 'FBC', name: 'Bruxelles-Central', region: 'Bruxelles', timezone: 'Europe/Brussels' },
+  { code: 'FLX', name: 'Bruxelles-Luxembourg', region: 'Bruxelles', timezone: 'Europe/Brussels' },
+  { code: 'FBSM', name: 'Bruxelles-Schuman', region: 'Bruxelles', timezone: 'Europe/Brussels' },
   
   // Wallonie
-  { code: 'FLG', name: 'Liège-Guillemins', region: 'Wallonie' },
-  { code: 'FNR', name: 'Namur', region: 'Wallonie' },
-  { code: 'FMS', name: 'Mons', region: 'Wallonie' },
-  { code: 'FCR', name: 'Charleroi-Central', region: 'Wallonie' },
-  { code: 'FLLN', name: 'Louvain-la-Neuve', region: 'Wallonie' },
-  { code: 'FVI', name: 'Verviers-Central', region: 'Wallonie' },
-  { code: 'FTR', name: 'Tournai', region: 'Wallonie' },
+  { code: 'FLG', name: 'Liège-Guillemins', region: 'Wallonie', timezone: 'Europe/Brussels' },
+  { code: 'FNR', name: 'Namur', region: 'Wallonie', timezone: 'Europe/Brussels' },
+  { code: 'FMS', name: 'Mons', region: 'Wallonie', timezone: 'Europe/Brussels' },
+  { code: 'FCR', name: 'Charleroi-Central', region: 'Wallonie', timezone: 'Europe/Brussels' },
+  { code: 'FLLN', name: 'Louvain-la-Neuve', region: 'Wallonie', timezone: 'Europe/Brussels' },
+  { code: 'FVI', name: 'Verviers-Central', region: 'Wallonie', timezone: 'Europe/Brussels' },
+  { code: 'FTR', name: 'Tournai', region: 'Wallonie', timezone: 'Europe/Brussels' },
   
   // Flandre
-  { code: 'FOT', name: 'Ostende', region: 'Flandre' },
-  { code: 'FGSP', name: 'Gand-Saint-Pierre', region: 'Flandre' },
-  { code: 'FAN', name: 'Anvers-Central', region: 'Flandre' },
-  { code: 'FAL', name: 'Alost', region: 'Flandre' },
-  { code: 'FBR', name: 'Bruges', region: 'Flandre' },
-  { code: 'FLE', name: 'Louvain', region: 'Flandre' },
+  { code: 'FOT', name: 'Ostende', region: 'Flandre', timezone: 'Europe/Brussels' },
+  { code: 'FGSP', name: 'Gand-Saint-Pierre', region: 'Flandre', timezone: 'Europe/Brussels' },
+  { code: 'FAN', name: 'Anvers-Central', region: 'Flandre', timezone: 'Europe/Brussels' },
+  { code: 'FAL', name: 'Alost', region: 'Flandre', timezone: 'Europe/Brussels' },
+  { code: 'FBR', name: 'Bruges', region: 'Flandre', timezone: 'Europe/Brussels' },
+  { code: 'FLE', name: 'Louvain', region: 'Flandre', timezone: 'Europe/Brussels' },
 ];
 
 export const DEPOT_MAP = new Map(DEPOTS.map(d => [d.code, d]));
@@ -181,9 +182,9 @@ export enum SwapStatus {
   VALIDATED = 'validated',            // Validé par le TS
   REJECTED = 'rejected',              // Refusé par le collègue
   REJECTED_BY_TS = 'rejected_by_ts',  // Refusé par le TS
-  CANCELLED = 'cancelled',            Annulé par l'initiateur
+  CANCELLED = 'cancelled',            // Annulé par l'initiateur
   EXPIRED = 'expired',                // Expiré (48h sans réponse)
-} as const;
+}
 
 export const SWAP_CONFIG = {
   MAX_PENDING_SWAPS_PER_USER: 5,
@@ -357,7 +358,7 @@ export const MOCK_USERS: UserProfile[] = [
     firstName: 'Jean',
     lastName: 'Dupont',
     email: 'jean.dupont@sncb.be',
-    phoneNumber: '+32 470 12 34 56',
+    phone: '+32 470 12 34 56',
     depot: 'FBMZ',
     series: '702',
     position: '12',
@@ -369,12 +370,6 @@ export const MOCK_USERS: UserProfile[] = [
     onboardingCompleted: true,
     createdAt: '2024-01-15T08:00:00Z',
     lastLogin: '2024-03-14T14:30:00Z',
-    swapSettings: {
-      acceptSwaps: true,
-      acceptMultiSwaps: true,
-      blacklist: [],
-      autoDeclinePatterns: [],
-    },
   },
   {
     id: '2',
@@ -382,7 +377,7 @@ export const MOCK_USERS: UserProfile[] = [
     firstName: 'Marc',
     lastName: 'Lambert',
     email: 'marc.lambert@sncb.be',
-    phoneNumber: '+32 470 23 45 67',
+    phone: '+32 470 23 45 67',
     depot: 'FBMZ',
     series: '702',
     position: '15',
@@ -394,12 +389,6 @@ export const MOCK_USERS: UserProfile[] = [
     onboardingCompleted: true,
     createdAt: '2024-01-20T08:00:00Z',
     lastLogin: '2024-03-14T09:15:00Z',
-    swapSettings: {
-      acceptSwaps: true,
-      acceptMultiSwaps: false,
-      blacklist: [],
-      autoDeclinePatterns: ['NIGHT'],
-    },
   },
   {
     id: '3',
@@ -407,7 +396,7 @@ export const MOCK_USERS: UserProfile[] = [
     firstName: 'Sophie',
     lastName: 'Vandevelde',
     email: 'sophie.vandevelde@sncb.be',
-    phoneNumber: '+32 470 34 56 78',
+    phone: '+32 470 34 56 78',
     depot: 'FNR',
     series: '101',
     position: '05',
@@ -419,12 +408,6 @@ export const MOCK_USERS: UserProfile[] = [
     onboardingCompleted: true,
     createdAt: '2024-02-10T08:00:00Z',
     lastLogin: '2024-03-14T16:45:00Z',
-    swapSettings: {
-      acceptSwaps: false,
-      acceptMultiSwaps: false,
-      blacklist: [],
-      autoDeclinePatterns: [],
-    },
   },
 ];
 
@@ -432,16 +415,11 @@ export const MOCK_USERS: UserProfile[] = [
 // UTILITAIRES
 // ============================================================================
 
-/**
- * Génère un ID unique sécurisé
- * Utilise UUID v4 si disponible, sinon fallback cryptographique
- */
 export function generateId(prefix?: string): string {
   try {
     const id = uuidv4();
     return prefix ? `${prefix}_${id}` : id;
   } catch (error) {
-    // Fallback sécurisé
     const array = new Uint8Array(16);
     crypto.getRandomValues(array);
     const fallbackId = Array.from(array, byte => 
@@ -452,19 +430,13 @@ export function generateId(prefix?: string): string {
   }
 }
 
-/**
- * Valide un code de gare SNCB
- */
 export function isValidStationCode(code: string): boolean {
   if (!code || typeof code !== 'string') return false;
   const normalized = code.trim().toUpperCase();
   return STATION_MAP.has(normalized) || 
-         /^[A-Z]{2,4}$/.test(normalized); // Format standard
+         /^[A-Z]{2,4}$/.test(normalized);
 }
 
-/**
- * Obtient le nom d'une gare depuis son code
- */
 export function getStationName(
   code: string, 
   language: 'fr' | 'nl' = 'fr',
@@ -489,14 +461,10 @@ export function getStationName(
   }
 }
 
-/**
- * Obtient les gares d'un dépôt donné
- */
 export function getStationsForDepot(depotCode: string): Station[] {
   const depot = DEPOT_MAP.get(depotCode);
   if (!depot) return [];
   
-  // Mapping des dépôts vers leurs gares principales
   const depotStations: Record<string, string[]> = {
     'FBMZ': ['FBMZ', 'FBN', 'FBC', 'FLX', 'FBSM'],
     'FLG': ['FLG', 'FVI', 'FNR'],
@@ -511,9 +479,6 @@ export function getStationsForDepot(depotCode: string): Station[] {
     .filter(Boolean) as Station[];
 }
 
-/**
- * Calcule les limites RGPS pour un ensemble de services
- */
 export function calculateRGPSLimits(duties: Duty[]): {
   totalHours: number;
   nightShifts: number;
@@ -524,20 +489,13 @@ export function calculateRGPSLimits(duties: Duty[]): {
   const now = new Date();
   const violations: string[] = [];
   
-  // Trier par date
   const sortedDuties = [...duties].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   
-  // Calculs de base
   const totalHours = sortedDuties.reduce((sum, duty) => sum + (duty.duration || 0), 0);
+  const nightShifts = sortedDuties.filter(duty => duty.isNightShift === true).length;
   
-  // Services de nuit
-  const nightShifts = sortedDuties.filter(duty => 
-    duty.isNightShift === true
-  ).length;
-  
-  // Jours consécutifs
   let consecutiveDays = 0;
   let currentStreak = 0;
   let lastDate: string | null = null;
@@ -555,13 +513,11 @@ export function calculateRGPSLimits(duties: Duty[]): {
     lastDate = duty.date;
   }
   
-  // Heures hebdomadaires (dernières 7 jours)
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const weeklyHours = sortedDuties
     .filter(duty => new Date(duty.date) >= sevenDaysAgo)
     .reduce((sum, duty) => sum + (duty.duration || 0), 0);
   
-  // Vérifier les violations
   if (totalHours > RGPS_RULES.MAX_MONTHLY_HOURS) {
     violations.push(`Dépassement mensuel: ${totalHours}h/${RGPS_RULES.MAX_MONTHLY_HOURS}h`);
   }
@@ -578,18 +534,9 @@ export function calculateRGPSLimits(duties: Duty[]): {
     violations.push(`Services de nuit: ${nightShifts}/${RGPS_RULES.MAX_NIGHT_SHIFTS_PER_WEEK}`);
   }
   
-  return {
-    totalHours,
-    nightShifts,
-    consecutiveDays,
-    weeklyHours,
-    violations,
-  };
+  return { totalHours, nightShifts, consecutiveDays, weeklyHours, violations };
 }
 
-/**
- * Vérifie si deux dates sont consécutives
- */
 function isConsecutiveDay(date1: string, date2: string): boolean {
   const d1 = new Date(date1);
   const d2 = new Date(date2);
@@ -597,18 +544,12 @@ function isConsecutiveDay(date1: string, date2: string): boolean {
   return diff === 1;
 }
 
-/**
- * Convertit une heure HH:MM en minutes depuis minuit
- */
 export function timeToMinutes(time: string): number {
   if (!time || typeof time !== 'string') return 0;
   const [hours, minutes] = time.split(':').map(Number);
   return (hours || 0) * 60 + (minutes || 0);
 }
 
-/**
- * Formate une durée en minutes en "Xh Ymin"
- */
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -618,45 +559,26 @@ export function formatDuration(minutes: number): string {
   return `${hours}h ${mins}min`;
 }
 
-// ============================================================================
-// CONFIGURATION DE L'APPLICATION
-// ============================================================================
-
 export const APP_CONFIG = {
-  // Performance
   DEBOUNCE_DELAY_MS: 300,
   SESSION_TIMEOUT_MINUTES: 30,
   AUTO_SAVE_DELAY_MS: 3000,
-  
-  // UI
   ITEMS_PER_PAGE: 20,
   MAX_UPLOAD_SIZE_MB: 10,
   NOTIFICATION_TIMEOUT_MS: 5000,
-  
-  // API
   MAX_RETRY_ATTEMPTS: 3,
   REQUEST_TIMEOUT_MS: 10000,
   POLLING_INTERVAL_MS: 30000,
-  
-  // Features
-  ENABLE_OCR: false, // Désactivé jusqu'à sécurisation
+  ENABLE_OCR: true,
   ENABLE_REAL_TIME: true,
   ENABLE_PWA: true,
   ENABLE_OFFLINE: false,
 } as const;
 
-// ============================================================================
-// TYPES UTILITAIRES
-// ============================================================================
-
 export type ServiceTypeCode = typeof SERVICE_TYPES[number]['code'];
 export type CompositionType = typeof COMPOSITIONS[number];
 export type RelationNumber = typeof RELATIONS[number]['number'];
 export type DepotCode = typeof DEPOTS[number]['code'];
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
 export default {
   APP_VERSION,
@@ -674,8 +596,6 @@ export default {
   INITIAL_PREFERENCES,
   MOCK_USERS,
   APP_CONFIG,
-  
-  // Utilitaires
   generateId,
   isValidStationCode,
   getStationName,

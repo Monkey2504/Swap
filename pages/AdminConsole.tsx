@@ -83,10 +83,11 @@ const AdminConsole: React.FC = () => {
                 techLogs.map((log, i) => (
                   <div key={i} className="flex gap-4 border-b border-white/5 pb-3">
                     <span className="text-slate-600 shrink-0">{log.timestamp.split('T')[1].substring(0, 8)}</span>
+                    {/* Fixed access to level instead of type to fix interface mismatch */}
                     <span className={`shrink-0 font-black uppercase px-2 rounded ${
-                      log.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'
+                      log.level === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'
                     }`}>
-                      {log.type}
+                      {log.level}
                     </span>
                     <span className="text-slate-300">{log.message}</span>
                   </div>

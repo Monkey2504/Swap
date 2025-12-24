@@ -5,13 +5,24 @@ export enum PreferenceLevel {
   DISLIKE = 'DISLIKE'
 }
 
+export type DepotRole = 'Conducteur' | 'Chef de train' | 'Chef de bord' | 'Flottant';
+// Added DepotCode to types.ts to fix import error in AppContext.tsx
+export type DepotCode = string;
+
+export interface Station {
+  code: string;
+  name: string;
+  type: 'station' | 'depot';
+  uicCode: string | null;
+}
+
 export interface UserPreference {
   id: string;
-  category: 'content' | 'planning' | 'location';
+  category: 'content' | 'planning' | 'location' | 'relation' | 'station_time';
   label: string;
   value: string;
   level: PreferenceLevel;
-  priority: number; // Utilisé pour l'ordre dans la colonne
+  priority: number;
   description?: string;
 }
 
@@ -19,18 +30,34 @@ export interface Duty {
   id: string;
   user_id?: string;
   code: string;
-  type: 'Omnibus' | 'IC' | 'L' | 'P' | 'S';
+  type: 'Omnibus' | 'IC' | 'L' | 'P' | 'S' | 'R' | 'VK' | 'CW' | 'RT' | 'ZM' | 'FL' | 'MA';
   relations: string[];
   compositions: string[];
   destinations: string[];
   startTime: string;
   endTime: string;
   date: string;
-  dayOfWeek?: string;
+  duration?: number;
+  isNightShift?: boolean;
+  // Added properties to fix missing property errors in SwapBoard and hooks
   depot?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// Added missing DTO for duty creation operations
+export interface DutyWithSwapStatus extends Duty {
+  status?: 'draft' | 'published' | 'swapped';
+  swapStatus?: 'pending' | 'in_progress' | 'completed';
+  isSynced?: boolean;
+}
+
+export interface DutyValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  duty: Duty;
+}
+
 export type CreateDutyDTO = Omit<Duty, 'id'>;
 
 export interface UserProfile {
@@ -45,9 +72,12 @@ export interface UserProfile {
   position: string;
   isFloating: boolean;
   currentDuties: Duty[];
+  preferences: UserPreference[];
   rgpdConsent: boolean;
   role?: string;
   onboardingCompleted: boolean;
+  createdAt?: string;
+  lastLogin?: string;
 }
 
 export type SwapMatchType = 'simple' | 'block' | 'patchwork';
@@ -63,11 +93,9 @@ export interface SwapOffer {
   matchType: SwapMatchType;
   status: SwapStatus;
   requestCount?: number;
-  // Added type property to identify manual requests vs suggested ones
   type?: 'manual_request' | 'suggested';
 }
 
-// Added missing SwapRequest interface for swap intentions
 export interface SwapRequest {
   id: string;
   offer_id: string;

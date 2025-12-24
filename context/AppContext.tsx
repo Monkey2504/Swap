@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { UserProfile, UserPreference, Duty, DepotCode } from '../types';
@@ -84,12 +85,18 @@ type AppAction =
   | { type: 'RESET_APP' };
 
 interface AppContextType extends AppState {
+  // Added properties used in App.tsx and ProfilePage.tsx
+  isSaving: boolean;
+
   // Actions utilisateur
   login: (user: UserProfile) => Promise<void>;
   logout: () => Promise<void>;
+  loadUserProfile: (id: string, authUser?: any) => Promise<void>;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
+  completeOnboarding: (updates: Partial<UserProfile>) => Promise<void>;
   
   // Gestion préférences
+  setPreferences: (prefs: UserPreference[]) => void;
   updatePreferences: (preferences: UserPreference[]) => void;
   updatePreference: (id: string, updates: Partial<UserPreference>) => void;
   addPreference: (preference: UserPreference) => void;
@@ -101,6 +108,7 @@ interface AppContextType extends AppState {
   // Gestion messages
   setError: (message: string | null) => void;
   setSuccess: (message: string | null) => void;
+  setSuccessMessage: (msg: string | null) => void;
   setWarning: (message: string | null) => void;
   clearMessages: () => void;
   
@@ -405,6 +413,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
+
+  // Added loadUserProfile to fix error in App.tsx
+  const loadUserProfile = useCallback(async (userId: string, authUser?: any) => {
+    dispatch({ type: 'SET_USER_LOADING', payload: true });
+    try {
+      const profile = await profileService.getOrCreateProfile({ 
+        id: userId, 
+        email: authUser?.email, 
+        metadata: authUser?.user_metadata 
+      });
+      dispatch({ type: 'SET_USER', payload: profile as any });
+      if (profile.preferences) {
+        dispatch({ type: 'SET_PREFERENCES', payload: profile.preferences as any });
+      }
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: formatError(error) });
+    } finally {
+      dispatch({ type: 'SET_USER_LOADING', payload: false });
+    }
+  }, []);
+
+  // Added completeOnboarding to fix error in ProfilePage.tsx
+  const completeOnboarding = useCallback(async (updates: Partial<UserProfile>) => {
+    if (!state.user) return;
+    dispatch({ type: 'SET_SAVING', payload: true });
+    try {
+      const finalUpdates = { ...updates, onboarding_completed: true };
+      await profileService.updateProfile(state.user.id, finalUpdates);
+      dispatch({ type: 'UPDATE_USER', payload: { ...updates, onboardingCompleted: true } });
+      dispatch({ type: 'SET_SUCCESS', payload: 'Compte activé avec succès !' });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: formatError(error) });
+    } finally {
+      dispatch({ type: 'SET_SAVING', payload: false });
+    }
+  }, [state.user]);
   
   const logout = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -578,6 +622,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateUserProfile = useCallback((updates: Partial<UserProfile>) => {
     dispatch({ type: 'UPDATE_USER', payload: updates });
   }, []);
+
+  const setPreferences = useCallback((preferences: UserPreference[]) => {
+    dispatch({ type: 'SET_PREFERENCES', payload: preferences });
+  }, []);
   
   const updatePreferences = useCallback((preferences: UserPreference[]) => {
     dispatch({ type: 'SET_PREFERENCES', payload: preferences });
@@ -600,6 +648,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
   
   const setSuccess = useCallback((message: string | null) => {
+    dispatch({ type: 'SET_SUCCESS', payload: message });
+  }, []);
+
+  const setSuccessMessage = useCallback((message: string | null) => {
     dispatch({ type: 'SET_SUCCESS', payload: message });
   }, []);
   
@@ -639,7 +691,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const violations: string[] = [];
     
     // Durée maximale
-    if (duty.duration > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
+    if ((duty.duration || 0) > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
       violations.push(`Durée trop longue: ${duty.duration}h > ${RGPS_RULES.MAX_SERVICE_DURATION_HOURS}h`);
     }
     
@@ -697,13 +749,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const contextValue: AppContextType = useMemo(() => ({
     // État
     ...state,
+    isSaving: state.ui.isSaving,
     
     // Actions utilisateur
     login,
     logout,
+    loadUserProfile,
     updateUserProfile,
+    completeOnboarding,
     
     // Gestion préférences
+    setPreferences,
     updatePreferences,
     updatePreference,
     addPreference,
@@ -715,6 +771,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Gestion messages
     setError,
     setSuccess,
+    setSuccessMessage,
     setWarning,
     clearMessages,
     
@@ -736,7 +793,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     state,
     login,
     logout,
+    loadUserProfile,
     updateUserProfile,
+    completeOnboarding,
+    setPreferences,
     updatePreferences,
     updatePreference,
     addPreference,
@@ -744,6 +804,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     publishDutyForSwap,
     setError,
     setSuccess,
+    setSuccessMessage,
     setWarning,
     clearMessages,
     addTechLog,

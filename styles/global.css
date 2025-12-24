@@ -3,7 +3,11 @@
 
 :root {
   --sncb-blue: #003399;
-  --premium-dark: #0d1117;
+  --premium-dark: #0a0c10;
+  --accent-purple: #a855f7;
+  --accent-cyan: #22d3ee;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
 }
 
 body {
@@ -12,35 +16,85 @@ body {
   background-color: var(--premium-dark);
   color: white;
   height: 100vh;
+  overflow: hidden;
 }
 
-.bg-railway-overlay {
-  background-image: linear-gradient(to bottom, rgba(13, 17, 23, 0.8), rgba(13, 17, 23, 0.95)), url('https://i.imgur.com/ChBOn7U.jpeg');
+/* Background Principal avec l'image du train */
+.app-bg-container {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: linear-gradient(rgba(10, 12, 16, 0.7), rgba(10, 12, 16, 0.85)), url('https://i.imgur.com/ChBOn7U.jpeg');
   background-size: cover;
   background-position: center;
+  transform: scale(1.05); /* Pour éviter les bords blancs sur le flou */
 }
 
+/* Panneau de Verre Principal */
+.glass-container {
+  background: rgba(255, 255, 255, 0.01);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--glass-border);
+  border-radius: 40px;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+}
+
+/* Sidebar Ultra Glass */
+.glass-sidebar {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+}
+
+/* Cartes de Verre */
 .glass-card {
   background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px;
+  backdrop-filter: blur(15px);
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  transition: all 0.3s ease;
 }
 
-.sidebar-item-active {
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.2) 0%, transparent 100%);
-  border-left: 3px solid #a855f7;
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
 }
 
-@keyframes scan-line {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+/* Éléments de Décoration */
+.match-score-circle {
+  background: conic-gradient(from 180deg at 50% 50%, #a855f7 0deg, #3b82f6 120deg, #22d3ee 240deg, #a855f7 360deg);
+  padding: 4px;
+  border-radius: 50%;
 }
 
-.animate-scan {
-  animation: scan-line 2s linear infinite;
+.inner-score-bg {
+  background: #1a1d23;
+  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.match-gradient {
-  background: conic-gradient(#a855f7, #3b82f6, #22d3ee, #a855f7);
+/* Boutons Spéciaux */
+.btn-logout-gradient {
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  box-shadow: 0 10px 20px rgba(168, 85, 247, 0.3);
+}
+
+.fab-create {
+  background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+  box-shadow: 0 15px 30px rgba(124, 58, 237, 0.4);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 }
