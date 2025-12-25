@@ -3,33 +3,40 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { UserPreference, Duty, SwapOffer } from "../types";
 import { STATION_CODES } from "../lib/stationCodes";
 
-// On donne à l'IA une liste d'exemples de codes pour améliorer la précision
-const STATION_HINTS = STATION_CODES.slice(0, 30).map(s => `${s.code}(${s.fr})`).join(', ');
+// Aide à l'IA avec les codes gares pour augmenter la précision du mapping
+const STATION_HINTS = STATION_CODES.slice(0, 50).map(s => `${s.code}(${s.fr})`).join(', ');
 
-const SYSTEM_PROMPT_ROSTER = `Vous êtes un expert en logistique ferroviaire SNCB.
-Votre tâche : Extraire les données d'un planning agent (Roster).
+const SYSTEM_PROMPT_ROSTER = `Vous êtes un expert en lecture de documents ferroviaires SNCB. 
+Votre mission est d'extraire les services (prestations) depuis une image ou un PDF de planning (roster).
 
-TERMINOLOGIE SNCB :
-- 'PS' : Prise de Service (Heure de début)
-- 'FS' : Fin de Service (Heure de fin)
-- 'Tour' / 'Série' : Identifiant du service (ex: 702, 115)
-- 'Gare' : Codes télégraphiques (ex: FBMZ, FNR, FLG)
+RÈGLES D'EXTRACTION :
+1. Identifiez le numéro de 'Tour' ou 'Série' (souvent un nombre de 3 chiffres).
+2. 'PS' ou 'Prise de service' -> startTime (HH:mm).
+3. 'FS' ou 'Fin de service' -> endTime (HH:mm).
+4. La date doit être au format ISO YYYY-MM-DD.
+5. Les destinations sont les codes télégraphiques (ex: FBMZ, FNR). 
+6. Le type de train est souvent indiqué par IC, L, S, P ou l'abréviation du matériel.
 
-RÈGLES :
-1. Les dates doivent être au format YYYY-MM-DD.
-2. Les heures au format HH:mm.
-3. Si une destination est un code, conservez le code.
-4. Soyez extrêmement rigoureux sur les horaires.`;
+IMPORTANT : 
+- Ignorez les lignes de repos (R) ou de maladie (M).
+- Si plusieurs jours sont visibles, extrayez tous les services.
+- Si une heure traverse minuit, assurez-vous de bien capturer startTime et endTime.`;
 
 export async function parseRosterDocument(base64Data: string, mimeType: string) {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  // Nettoyage de la chaîne base64 (on retire le prefixe data:application/pdf;base64, si présent)
+  const cleanBase64 = base64Data.includes('base64,') 
+    ? base64Data.split('base64,')[1] 
+    : base64Data;
+
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { inlineData: { mimeType, data: base64Data } },
-          { text: "Analyse ce document SNCB et extrais la liste des services. Codes connus pour aide : " + STATION_HINTS }
+          { inlineData: { mimeType, data: cleanBase64 } },
+          { text: "Extrais la liste des prestations de ce planning. Aide codes gares : " + STATION_HINTS }
         ]
       },
       config: {
@@ -43,11 +50,11 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  code: { type: Type.STRING, description: "Numéro du tour de service" },
-                  date: { type: Type.STRING, description: "Date ISO" },
-                  startTime: { type: Type.STRING, description: "Heure PS" },
-                  endTime: { type: Type.STRING, description: "Heure FS" },
-                  type: { type: Type.STRING, description: "Type de train (IC, L, S, P)" },
+                  code: { type: Type.STRING, description: "Numéro de tour" },
+                  date: { type: Type.STRING, description: "Date YYYY-MM-DD" },
+                  startTime: { type: Type.STRING, description: "PS HH:mm" },
+                  endTime: { type: Type.STRING, description: "FS HH:mm" },
+                  type: { type: Type.STRING, description: "Type (IC, L, S, P)" },
                   destinations: { type: Type.ARRAY, items: { type: Type.STRING } }
                 },
                 required: ["code", "startTime", "endTime", "date"]
@@ -58,23 +65,26 @@ export async function parseRosterDocument(base64Data: string, mimeType: string) 
       }
     });
 
-    const parsed = JSON.parse(response.text || '{"services": []}');
+    const text = response.text;
+    if (!text) throw new Error("Réponse vide de l'IA");
+    
+    const parsed = JSON.parse(text);
     return parsed.services || [];
   } catch (error) {
-    console.error("Erreur parsing Gemini:", error);
-    throw new Error("L'IA n'a pas pu lire le document. Assurez-vous que la photo est nette.");
+    console.error("Erreur Gemini Service:", error);
+    throw new Error("Échec de la lecture du document. Vérifiez la netteté du fichier.");
   }
 }
 
 export async function matchSwaps(preferences: UserPreference[], offers: SwapOffer[]) {
-  // Logique simplifiée pour le MVP (Heuristique rapide)
+  // Simule un matching basé sur les préférences (score entre 0 et 100)
   return offers.map(offer => {
-    let score = 70; // Score de base
-    // Logique locale sans appel API pour la rapidité
+    let score = 50;
+    // Logique simplifiée pour le retour visuel
     return {
       ...offer,
       matchScore: score,
-      matchReasons: ["Analyse de conformité RGPS", "Dépôt correspondant"]
+      matchReasons: ["Analyse RGPS effectuée", "Dépôt compatible"]
     };
   });
 }

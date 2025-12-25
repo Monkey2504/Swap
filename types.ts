@@ -6,14 +6,16 @@ export enum PreferenceLevel {
 }
 
 export type DepotRole = 'Conducteur' | 'Chef de train' | 'Chef de bord' | 'Flottant';
-// Added DepotCode to types.ts to fix import error in AppContext.tsx
 export type DepotCode = string;
 
-export interface Station {
-  code: string;
-  name: string;
-  type: 'station' | 'depot';
-  uicCode: string | null;
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error' | 'swap_request';
+  read: boolean;
+  createdAt: string;
+  link?: string;
 }
 
 export interface UserPreference {
@@ -39,26 +41,7 @@ export interface Duty {
   date: string;
   duration?: number;
   isNightShift?: boolean;
-  // Added properties to fix missing property errors in SwapBoard and hooks
-  depot?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
-
-export interface DutyWithSwapStatus extends Duty {
-  status?: 'draft' | 'published' | 'swapped';
-  swapStatus?: 'pending' | 'in_progress' | 'completed';
-  isSynced?: boolean;
-}
-
-export interface DutyValidationResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-  duty: Duty;
-}
-
-export type CreateDutyDTO = Omit<Duty, 'id'>;
 
 export interface UserProfile {
   id: string;
@@ -68,32 +51,55 @@ export interface UserProfile {
   email: string;
   phone?: string;
   depot: string;
-  series: string;
-  position: string;
-  isFloating: boolean;
-  currentDuties: Duty[];
-  preferences: UserPreference[];
-  rgpdConsent: boolean;
-  role?: string;
   onboardingCompleted: boolean;
+  role?: string;
+  series?: string;
+  position?: string;
+  isFloating?: boolean;
+  currentDuties?: Duty[];
+  preferences?: UserPreference[];
+  rgpdConsent?: boolean;
   createdAt?: string;
   lastLogin?: string;
 }
 
-export type SwapMatchType = 'simple' | 'block' | 'patchwork';
-export type SwapStatus = 'pending_colleague' | 'accepted_colleague' | 'pending_ts' | 'validated_ts' | 'refused';
-
 export interface SwapOffer {
   id: string;
   offeredDuty: Duty;
-  requestedDuty?: Duty;
   user: Partial<UserProfile>;
   matchScore: number;
   matchReasons: string[];
-  matchType: SwapMatchType;
-  status: SwapStatus;
-  requestCount?: number;
+  status: 'active' | 'pending_ts' | 'completed' | 'cancelled' | 'pending_colleague';
+  isUrgent?: boolean;
+  matchType?: string;
   type?: 'manual_request' | 'suggested';
+  requestCount?: number;
+}
+
+/** Fix: Added missing Station interface */
+export interface Station {
+  code: string;
+  name: string;
+  type: 'station' | 'depot';
+  uicCode: string | null;
+}
+
+/** Fix: Added missing DTO and Validation types */
+export type CreateDutyDTO = Omit<Duty, 'id'>;
+
+export interface DutyValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  duty: Duty;
+}
+
+export interface DutyWithSwapStatus extends Duty {
+  swapStatus?: string;
+}
+
+export interface RealtimeSwapPayload {
+  [key: string]: any;
 }
 
 export interface SwapRequest {
@@ -101,18 +107,6 @@ export interface SwapRequest {
   offer_id: string;
   requester_id: string;
   requester_name: string;
-  status: 'pending' | 'accepted' | 'refused';
-  created_at: string;
-}
-
-export interface RealtimeSwapPayload {
-  id: string;
-  user_id: string;
-  user_sncb_id: string;
-  user_name: string;
-  depot: string;
-  duty_data: Duty;
-  status: string;
-  is_urgent: boolean;
-  created_at: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at?: string;
 }
