@@ -39,6 +39,7 @@ const ROSTER_SCHEMA = {
 };
 
 export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<Duty[]> {
+  // Initialisation à l'intérieur de la fonction comme requis
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const base64Content = base64Data.split(',')[1] || base64Data;
 

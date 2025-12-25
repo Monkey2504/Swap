@@ -6,11 +6,11 @@ import { parseRosterDocument } from '../services/geminiService';
 import { Duty } from '../types';
 import { formatError } from '../lib/api';
 import { DEPOTS } from '../constants';
-import { Upload, Trash2, Loader2, FileText, CheckCircle, AlertCircle, XCircle, Info } from 'lucide-react';
+import { Upload, Trash2, Loader2, FileText, CheckCircle, AlertCircle, XCircle, Info, Lock } from 'lucide-react';
 
 const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading: boolean }> = ({ onNext, duties, dutiesLoading }) => {
   const { user, completeOnboarding, setError, setSuccessMessage, ui, clearMessages, isSaving } = useApp();
-  const { removeDuty, addDuty, refresh, error: dutiesError } = useDuties(user?.id);
+  const { removeDuty, addDuties, refresh, error: dutiesError } = useDuties(user?.id);
   
   const [isUploading, setIsUploading] = useState(false);
   const [rgpdAccepted, setRgpdAccepted] = useState(false);
@@ -19,7 +19,6 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
   const [editLastName, setEditLastName] = useState('');
   const [editDepot, setEditDepot] = useState('');
 
-  // Initialisation du formulaire quand l'utilisateur est chargé
   useEffect(() => {
     if (user) {
       setEditFirstName(user.firstName || '');
@@ -31,26 +30,27 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isProfileComplete = editFirstName.trim() !== '' && 
-                            editLastName.trim() !== '' && 
-                            editDepot !== '' && 
-                            rgpdAccepted;
+  const validation = {
+    firstName: editFirstName.trim() !== '',
+    lastName: editLastName.trim() !== '',
+    depot: editDepot !== '',
+    rgpd: rgpdAccepted
+  };
+
+  const isProfileComplete = validation.firstName && validation.lastName && validation.depot && validation.rgpd;
 
   const handleActivateAccount = async () => {
     if (!isProfileComplete || isSaving) return;
     clearMessages();
     
     try {
-      console.log("[Profile] Tentative d'activation...");
       await completeOnboarding({
         first_name: editFirstName.trim(),
         last_name: editLastName.trim(),
         depot: editDepot,
         rgpd_consent: rgpdAccepted
       } as any);
-      console.log("[Profile] Succès activation !");
     } catch (err) {
-      console.error("[Profile] Erreur activation:", err);
       setError(formatError(err));
     }
   };
@@ -67,7 +67,6 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
     setIsUploading(true);
     clearMessages();
-    console.log("[Profile] Début analyse Roster...");
 
     const reader = new FileReader();
     reader.onload = async () => {
@@ -79,25 +78,19 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           throw new Error("L'IA n'a détecté aucune prestation valide.");
         }
 
-        console.log(`[Profile] ${parsedServices.length} prestations trouvées.`);
+        const dutiesToCreate = parsedServices.map(s => ({
+          code: s.code,
+          date: s.date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          type: s.type || 'IC',
+          destinations: s.destinations || [],
+          user_id: user?.id
+        }));
 
-        for (const s of parsedServices) {
-          await addDuty({
-            code: s.code,
-            date: s.date,
-            start_time: s.start_time,
-            end_time: s.end_time,
-            type: s.type || 'IC',
-            destinations: s.destinations || [],
-            user_id: user?.id
-          } as any);
-        }
-
-        setSuccessMessage(`${parsedServices.length} prestations importées.`);
-        // On force le rafraîchissement des données du Roster
-        await refresh();
+        await addDuties(dutiesToCreate as any);
+        setSuccessMessage(`${parsedServices.length} prestations importées avec succès.`);
       } catch (err) {
-        console.error("[Profile] Erreur Import IA:", err);
         setError(formatError(err));
       } finally {
         setIsUploading(false);
@@ -109,7 +102,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
   return (
     <div className="space-y-8 animate-slide-up pb-20 max-w-4xl mx-auto px-4">
-      {/* ZONE DE NOTIFICATION */}
+      {/* NOTIFICATIONS */}
       {(ui.error || ui.success || dutiesError) && (
         <div className={`p-4 rounded-xl border flex items-center gap-3 animate-slide-up shadow-sm ${
           ui.error || dutiesError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
@@ -137,7 +130,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Prénom</label>
             <input 
               type="text" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all"
+              className={`w-full bg-gray-50 border rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all ${!validation.firstName && editFirstName !== '' ? 'border-red-200' : 'border-gray-200'}`}
               value={editFirstName}
               onChange={e => setEditFirstName(e.target.value)}
               placeholder="Ex: Jean"
@@ -147,7 +140,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nom</label>
             <input 
               type="text" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all"
+              className={`w-full bg-gray-50 border rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all ${!validation.lastName && editLastName !== '' ? 'border-red-200' : 'border-gray-200'}`}
               value={editLastName}
               onChange={e => setEditLastName(e.target.value)}
               placeholder="Ex: Dupont"
@@ -156,7 +149,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           <div className="space-y-1.5 md:col-span-2">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Dépôt d'attache</label>
             <select 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all appearance-none"
+              className={`w-full bg-gray-50 border rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all appearance-none ${!validation.depot && editDepot !== '' ? 'border-red-200' : 'border-gray-200'}`}
               value={editDepot}
               onChange={e => setEditDepot(e.target.value)}
             >
@@ -178,17 +171,17 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           </div>
           <label htmlFor="rgpd" className="text-[11px] font-bold text-slate-600 leading-snug cursor-pointer select-none">
             J'autorise SwapACT à traiter mes données de service pour le matching. <br/>
-            <span className="text-[9px] text-slate-400 font-medium">Les données sont stockées de manière sécurisée sur le Cloud SNCB.</span>
+            <span className="text-[9px] text-slate-400 font-medium italic">Obligatoire pour l'activation du compte.</span>
           </label>
         </div>
 
         <button 
           disabled={!isProfileComplete || isSaving}
           onClick={handleActivateAccount}
-          className="w-full mt-8 py-5 bg-sncb-blue text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-sncb-blue-light transition-all disabled:opacity-30 shadow-xl shadow-sncb-blue/20 group"
+          className="w-full mt-8 py-5 bg-sncb-blue text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-sncb-blue-light transition-all disabled:opacity-40 shadow-xl shadow-sncb-blue/20 group"
         >
-          {isSaving ? <Loader2 className="animate-spin" size={18} /> : (user?.onboardingCompleted ? <CheckCircle size={18} /> : <AlertCircle size={18} />)}
-          {user?.onboardingCompleted ? "Mettre à jour mon profil" : "Activer mon compte agent"}
+          {isSaving ? <Loader2 className="animate-spin" size={18} /> : (isProfileComplete ? <CheckCircle size={18} /> : <Lock size={18} />)}
+          {!isProfileComplete ? "Compléter les informations" : (user?.onboardingCompleted ? "Mettre à jour mon profil" : "Activer mon compte agent")}
         </button>
       </section>
 
@@ -204,7 +197,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           <button 
             onClick={triggerFileInput}
             disabled={isUploading || !user?.onboardingCompleted}
-            className={`px-8 py-4 bg-white border border-sncb-blue text-sncb-blue rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-blue-50 transition-all shadow-sm disabled:opacity-20`}
+            className={`px-8 py-4 bg-white border border-sncb-blue text-sncb-blue rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-blue-50 transition-all shadow-sm disabled:opacity-30`}
           >
             {isUploading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
             Scanner Roster
@@ -220,11 +213,8 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
         {dutiesLoading || isUploading ? (
           <div className="py-24 flex flex-col items-center glass-card bg-white rounded-[32px] border-dashed border-2 border-gray-100">
-            <div className="relative">
-              <div className="absolute inset-0 bg-sncb-blue/10 blur-xl rounded-full"></div>
-              <Loader2 className="animate-spin text-sncb-blue relative" size={48} />
-            </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-8 animate-pulse">
+            <Loader2 className="animate-spin text-sncb-blue mb-6" size={48} />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">
               {isUploading ? "Intelligence Artificielle en cours..." : "Synchronisation Roster..."}
             </p>
           </div>
@@ -250,7 +240,6 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                 <button 
                   onClick={() => removeDuty(duty.id)}
                   className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                  title="Supprimer cette prestation"
                 >
                   <Trash2 size={18} />
                 </button>
@@ -263,9 +252,6 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                <FileText size={40} />
              </div>
              <h4 className="text-xs font-black text-gray-300 uppercase tracking-[0.2em] italic">Aucune prestation chargée</h4>
-             <p className="text-[10px] text-gray-400 mt-2 font-medium max-w-[240px] mx-auto leading-relaxed">
-               Importez votre planning pour que l'IA puisse vous proposer des échanges pertinents.
-             </p>
           </div>
         )}
       </section>
@@ -276,7 +262,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             onClick={onNext}
             className="px-14 py-6 bg-sncb-blue text-white rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-4"
           >
-            Passer aux Préférences
+            Accéder à la Bourse
             <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
               <CheckCircle size={14} />
             </div>
