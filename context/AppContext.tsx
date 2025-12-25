@@ -117,8 +117,8 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'ADD_PREFERENCE': return { ...state, preferences: [...state.preferences, action.payload], hasUnsyncedChanges: true };
     case 'REMOVE_PREFERENCE': return { ...state, preferences: state.preferences.filter(pref => pref.id !== action.payload), hasUnsyncedChanges: true };
     case 'INCREMENT_PREFERENCES_VERSION': return { ...state, preferencesVersion: state.preferencesVersion + 1 };
-    case 'SET_ERROR': return { ...state, ui: { ...state.ui, error: action.payload } };
-    case 'SET_SUCCESS': return { ...state, ui: { ...state.ui, success: action.payload } };
+    case 'SET_ERROR': return { ...state, ui: { ...state.ui, error: action.payload, success: null } };
+    case 'SET_SUCCESS': return { ...state, ui: { ...state.ui, success: action.payload, error: null } };
     case 'SET_WARNING': return { ...state, ui: { ...state.ui, warning: action.payload } };
     case 'SET_SAVING': return { ...state, ui: { ...state.ui, isSaving: action.payload } };
     case 'SET_LOADING': return { ...state, ui: { ...state.ui, isLoading: action.payload } };
@@ -137,13 +137,39 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const saveTimeoutRef = useRef<any>(null);
   const isMountedRef = useRef(true);
-  const lastSaveRef = useRef<{ user: string; prefs: string }>({ user: '', prefs: '' });
 
   useEffect(() => {
     isMountedRef.current = true;
-    return () => { isMountedRef.current = false; if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  const loadUserProfile = useCallback(async (userId: string, authUser?: any) => {
+    dispatch({ type: 'SET_USER_LOADING', payload: true });
+    try {
+      const profile = await profileService.getOrCreateProfile({ id: userId, email: authUser?.email, metadata: authUser?.user_metadata });
+      
+      // Remapping keys from DB snake_case to UI camelCase
+      const mappedProfile: UserProfile = {
+        id: profile.id,
+        sncbId: profile.sncb_id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        email: profile.email,
+        depot: profile.depot,
+        onboardingCompleted: profile.onboarding_completed,
+        role: profile.role,
+        preferences: profile.preferences || [],
+        rgpdConsent: profile.rgpd_consent
+      };
+
+      dispatch({ type: 'SET_USER', payload: mappedProfile });
+      if (mappedProfile.preferences) dispatch({ type: 'SET_PREFERENCES', payload: mappedProfile.preferences });
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: formatError(error) });
+    } finally {
+      dispatch({ type: 'SET_USER_LOADING', payload: false });
+    }
   }, []);
 
   const login = useCallback(async (user: UserProfile) => {
@@ -153,29 +179,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dispatch({ type: 'SET_LOADING', payload: false });
   }, []);
 
-  const loadUserProfile = useCallback(async (userId: string, authUser?: any) => {
-    dispatch({ type: 'SET_USER_LOADING', payload: true });
-    try {
-      const profile = await profileService.getOrCreateProfile({ id: userId, email: authUser?.email, metadata: authUser?.user_metadata });
-      dispatch({ type: 'SET_USER', payload: profile as any });
-      if (profile.preferences) dispatch({ type: 'SET_PREFERENCES', payload: profile.preferences as any });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: formatError(error) });
-    } finally {
-      dispatch({ type: 'SET_USER_LOADING', payload: false });
-    }
-  }, []);
-
-  const completeOnboarding = useCallback(async (updates: Partial<UserProfile>) => {
+  const completeOnboarding = useCallback(async (updates: any) => {
     if (!state.user) return;
     dispatch({ type: 'SET_SAVING', payload: true });
+    dispatch({ type: 'CLEAR_MESSAGES' });
+    
     try {
       await profileService.updateProfile(state.user.id, { ...updates, onboarding_completed: true });
-      dispatch({ type: 'UPDATE_USER', payload: { ...updates, onboardingCompleted: true } });
-      dispatch({ type: 'SET_SUCCESS', payload: 'Profil activé !' });
-    } catch (error) { dispatch({ type: 'SET_ERROR', payload: formatError(error) }); }
+      // Rafraîchir le profil local pour mettre à jour l'UI
+      await loadUserProfile(state.user.id);
+      dispatch({ type: 'SET_SUCCESS', payload: 'Profil validé avec succès !' });
+    } catch (error) { 
+      dispatch({ type: 'SET_ERROR', payload: formatError(error) }); 
+    }
     finally { dispatch({ type: 'SET_SAVING', payload: false }); }
-  }, [state.user]);
+  }, [state.user, loadUserProfile]);
 
   const validateRGPS = useCallback((duty: Duty, otherDuties: Duty[] = []): { valid: boolean; violations: string[] } => {
     const violations: string[] = [];
