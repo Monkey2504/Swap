@@ -137,19 +137,12 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const isMountedRef = useRef(true);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => { isMountedRef.current = false; };
-  }, []);
 
   const loadUserProfile = useCallback(async (userId: string, authUser?: any) => {
     dispatch({ type: 'SET_USER_LOADING', payload: true });
     try {
       const profile = await profileService.getOrCreateProfile({ id: userId, email: authUser?.email, metadata: authUser?.user_metadata });
       
-      // Remapping keys from DB snake_case to UI camelCase
       const mappedProfile: UserProfile = {
         id: profile.id,
         sncbId: profile.sncb_id,
@@ -172,23 +165,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const login = useCallback(async (user: UserProfile) => {
-    dispatch({ type: 'SET_LOADING', payload: true });
-    dispatch({ type: 'SET_USER', payload: user });
-    if (user.preferences) dispatch({ type: 'SET_PREFERENCES', payload: user.preferences });
-    dispatch({ type: 'SET_LOADING', payload: false });
-  }, []);
-
   const completeOnboarding = useCallback(async (updates: any) => {
     if (!state.user) return;
     dispatch({ type: 'SET_SAVING', payload: true });
     dispatch({ type: 'CLEAR_MESSAGES' });
     
     try {
-      await profileService.updateProfile(state.user.id, { ...updates, onboarding_completed: true });
-      // Rafraîchir le profil local pour mettre à jour l'UI
+      // 1. Mise à jour en base de données
+      await profileService.updateProfile(state.user.id, { 
+        ...updates, 
+        onboarding_completed: true
+      });
+      
+      // 2. Mise à jour immédiate de l'état local pour débloquer l'UI
+      dispatch({ type: 'UPDATE_USER', payload: {
+        firstName: updates.first_name,
+        lastName: updates.last_name,
+        depot: updates.depot,
+        rgpdConsent: updates.rgpd_consent,
+        onboardingCompleted: true
+      }});
+      
+      // 3. Re-téléchargement pour être sûr
       await loadUserProfile(state.user.id);
-      dispatch({ type: 'SET_SUCCESS', payload: 'Profil validé avec succès !' });
+      dispatch({ type: 'SET_SUCCESS', payload: 'Compte Agent Activé !' });
+      
     } catch (error) { 
       dispatch({ type: 'SET_ERROR', payload: formatError(error) }); 
     }
@@ -201,6 +202,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       violations.push(`Durée excessive (${duty.duration}h)`);
     }
     return { valid: violations.length === 0, violations };
+  }, []);
+
+  const login = useCallback(async (user: UserProfile) => {
+    dispatch({ type: 'SET_USER', payload: user });
   }, []);
 
   const logout = useCallback(async () => { dispatch({ type: 'RESET_APP' }); }, []);

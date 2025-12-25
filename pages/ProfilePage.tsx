@@ -1,24 +1,33 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useDuties } from '../hooks/useDuties';
 import { parseRosterDocument } from '../services/geminiService';
 import { Duty } from '../types';
 import { formatError } from '../lib/api';
 import { DEPOTS } from '../constants';
-import { Upload, Trash2, Loader2, FileText, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { Upload, Trash2, Loader2, FileText, CheckCircle, AlertCircle, XCircle, Info } from 'lucide-react';
 
 const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading: boolean }> = ({ onNext, duties, dutiesLoading }) => {
-  const { user, completeOnboarding, setError, setSuccessMessage, ui, clearMessages } = useApp();
+  const { user, completeOnboarding, setError, setSuccessMessage, ui, clearMessages, isSaving } = useApp();
   const { removeDuty, addDuty, refresh, error: dutiesError } = useDuties(user?.id);
   
   const [isUploading, setIsUploading] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const [rgpdAccepted, setRgpdAccepted] = useState(user?.rgpdConsent || false);
+  const [rgpdAccepted, setRgpdAccepted] = useState(false);
   
-  const [editFirstName, setEditFirstName] = useState(user?.firstName || '');
-  const [editLastName, setEditLastName] = useState(user?.lastName || '');
-  const [editDepot, setEditDepot] = useState(user?.depot || '');
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editDepot, setEditDepot] = useState('');
+
+  // Initialisation du formulaire quand l'utilisateur est chargé
+  useEffect(() => {
+    if (user) {
+      setEditFirstName(user.firstName || '');
+      setEditLastName(user.lastName || '');
+      setEditDepot(user.depot || '');
+      setRgpdAccepted(user.rgpdConsent || false);
+    }
+  }, [user]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,23 +37,21 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                             rgpdAccepted;
 
   const handleActivateAccount = async () => {
-    if (!isProfileComplete || isActivating) return;
-    setIsActivating(true);
+    if (!isProfileComplete || isSaving) return;
     clearMessages();
     
     try {
-      // On passe explicitement les clés en snake_case pour Supabase
+      console.log("[Profile] Tentative d'activation...");
       await completeOnboarding({
-        first_name: editFirstName,
-        last_name: editLastName,
+        first_name: editFirstName.trim(),
+        last_name: editLastName.trim(),
         depot: editDepot,
         rgpd_consent: rgpdAccepted
       } as any);
-      setSuccessMessage("Compte activé avec succès !");
+      console.log("[Profile] Succès activation !");
     } catch (err) {
+      console.error("[Profile] Erreur activation:", err);
       setError(formatError(err));
-    } finally {
-      setIsActivating(false);
     }
   };
 
@@ -60,6 +67,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
     setIsUploading(true);
     clearMessages();
+    console.log("[Profile] Début analyse Roster...");
 
     const reader = new FileReader();
     reader.onload = async () => {
@@ -68,29 +76,28 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         const parsedServices = await parseRosterDocument(base64, file.type);
         
         if (!parsedServices || parsedServices.length === 0) {
-          throw new Error("L'IA n'a détecté aucune prestation. Vérifiez le document.");
+          throw new Error("L'IA n'a détecté aucune prestation valide.");
         }
 
-        let importedCount = 0;
+        console.log(`[Profile] ${parsedServices.length} prestations trouvées.`);
+
         for (const s of parsedServices) {
-          try {
-            await addDuty({
-              code: s.code,
-              date: s.date,
-              start_time: s.start_time,
-              end_time: s.end_time,
-              type: s.type || 'IC',
-              destinations: s.destinations || [],
-              user_id: user?.id
-            } as any);
-            importedCount++;
-          } catch (e) {
-            console.warn("Service ignoré:", e);
-          }
+          await addDuty({
+            code: s.code,
+            date: s.date,
+            start_time: s.start_time,
+            end_time: s.end_time,
+            type: s.type || 'IC',
+            destinations: s.destinations || [],
+            user_id: user?.id
+          } as any);
         }
-        setSuccessMessage(`${importedCount} prestations importées.`);
+
+        setSuccessMessage(`${parsedServices.length} prestations importées.`);
+        // On force le rafraîchissement des données du Roster
         await refresh();
       } catch (err) {
+        console.error("[Profile] Erreur Import IA:", err);
         setError(formatError(err));
       } finally {
         setIsUploading(false);
@@ -101,93 +108,105 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
   };
 
   return (
-    <div className="space-y-8 animate-slide-up pb-20 max-w-4xl mx-auto">
+    <div className="space-y-8 animate-slide-up pb-20 max-w-4xl mx-auto px-4">
       {/* ZONE DE NOTIFICATION */}
       {(ui.error || ui.success || dutiesError) && (
-        <div className={`p-4 rounded-xl border flex items-center gap-3 animate-slide-up ${
+        <div className={`p-4 rounded-xl border flex items-center gap-3 animate-slide-up shadow-sm ${
           ui.error || dutiesError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
         }`}>
-          {ui.error || dutiesError ? <XCircle size={20} /> : <CheckCircle size={20} />}
-          <p className="text-xs font-bold uppercase tracking-tight">
+          {ui.error || dutiesError ? <XCircle size={18} /> : <CheckCircle size={18} />}
+          <p className="text-[11px] font-bold uppercase tracking-tight flex-grow">
             {ui.error || dutiesError || ui.success}
           </p>
-          <button onClick={clearMessages} className="ml-auto opacity-50 hover:opacity-100">
-            <XCircle size={14} />
+          <button onClick={clearMessages} className="p-1 hover:bg-black/5 rounded-full transition-colors">
+            <XCircle size={14} className="opacity-40" />
           </button>
         </div>
       )}
 
-      <section className="glass-card p-6 md:p-8 bg-white shadow-xl rounded-2xl border border-gray-100">
-        <h3 className="text-[10px] font-black text-sncb-blue uppercase tracking-widest mb-6 italic">Identification Agent</h3>
+      <section className="glass-card p-6 md:p-8 bg-white shadow-xl rounded-3xl border border-gray-100">
+        <div className="flex items-center gap-3 mb-8">
+           <div className="w-10 h-10 bg-sncb-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-sncb-blue/20">
+             <CheckCircle size={20} />
+           </div>
+           <h3 className="text-xs font-black text-sncb-blue uppercase tracking-[0.2em] italic">Identification Agent</h3>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Prénom</label>
             <input 
               type="text" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:outline-none focus:border-sncb-blue transition-all"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all"
               value={editFirstName}
               onChange={e => setEditFirstName(e.target.value)}
-              placeholder="Votre prénom"
+              placeholder="Ex: Jean"
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nom</label>
             <input 
               type="text" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:outline-none focus:border-sncb-blue transition-all"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all"
               value={editLastName}
               onChange={e => setEditLastName(e.target.value)}
-              placeholder="Votre nom"
+              placeholder="Ex: Dupont"
             />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5 md:col-span-2">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Dépôt d'attache</label>
             <select 
-              className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:outline-none focus:border-sncb-blue transition-all"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all appearance-none"
               value={editDepot}
               onChange={e => setEditDepot(e.target.value)}
             >
-              <option value="">Sélectionner un dépôt</option>
+              <option value="">-- Sélectionner votre dépôt --</option>
               {DEPOTS.map(d => <option key={d.code} value={d.code}>{d.name} ({d.code})</option>)}
             </select>
           </div>
         </div>
         
-        <div className="mt-8 flex items-center gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-          <input 
-            type="checkbox" 
-            id="rgpd" 
-            className="w-5 h-5 rounded border-gray-300 text-sncb-blue focus:ring-sncb-blue"
-            checked={rgpdAccepted}
-            onChange={e => setRgpdAccepted(e.target.checked)}
-          />
-          <label htmlFor="rgpd" className="text-[11px] font-medium text-slate-600 leading-tight cursor-pointer">
-            J'accepte que mes données de service soient synchronisées avec le Cloud SwapACT.
+        <div className={`mt-8 flex items-center gap-4 p-5 rounded-2xl border transition-all ${rgpdAccepted ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'}`}>
+          <div className="relative flex items-center">
+            <input 
+              type="checkbox" 
+              id="rgpd" 
+              className="w-6 h-6 rounded-lg border-gray-300 text-sncb-blue focus:ring-sncb-blue cursor-pointer"
+              checked={rgpdAccepted}
+              onChange={e => setRgpdAccepted(e.target.checked)}
+            />
+          </div>
+          <label htmlFor="rgpd" className="text-[11px] font-bold text-slate-600 leading-snug cursor-pointer select-none">
+            J'autorise SwapACT à traiter mes données de service pour le matching. <br/>
+            <span className="text-[9px] text-slate-400 font-medium">Les données sont stockées de manière sécurisée sur le Cloud SNCB.</span>
           </label>
         </div>
 
         <button 
-          disabled={!isProfileComplete || isActivating}
+          disabled={!isProfileComplete || isSaving}
           onClick={handleActivateAccount}
-          className="w-full mt-8 py-4 bg-sncb-blue text-white rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-sncb-blue-light transition-all disabled:opacity-50 shadow-lg shadow-sncb-blue/20"
+          className="w-full mt-8 py-5 bg-sncb-blue text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-sncb-blue-light transition-all disabled:opacity-30 shadow-xl shadow-sncb-blue/20 group"
         >
-          {isActivating ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle size={18} />}
+          {isSaving ? <Loader2 className="animate-spin" size={18} /> : (user?.onboardingCompleted ? <CheckCircle size={18} /> : <AlertCircle size={18} />)}
           {user?.onboardingCompleted ? "Mettre à jour mon profil" : "Activer mon compte agent"}
         </button>
       </section>
 
       <section className="space-y-6">
-        <div className="flex justify-between items-end px-1">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-1">
           <div>
-            <h3 className="text-[10px] font-black text-sncb-blue uppercase tracking-widest italic">Gestion du Roster</h3>
-            <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Importez vos prestations via l'IA</p>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-1.5 h-1.5 bg-sncb-blue rounded-full"></div>
+              <h3 className="text-[10px] font-black text-sncb-blue uppercase tracking-widest italic">Gestion du Roster</h3>
+            </div>
+            <p className="text-[9px] font-bold text-gray-400 uppercase">Numérisez vos prestations (PDF ou Photo)</p>
           </div>
           <button 
             onClick={triggerFileInput}
-            disabled={isUploading}
-            className="px-6 py-3 bg-white border border-sncb-blue text-sncb-blue rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-blue-50 transition-all shadow-sm"
+            disabled={isUploading || !user?.onboardingCompleted}
+            className={`px-8 py-4 bg-white border border-sncb-blue text-sncb-blue rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-blue-50 transition-all shadow-sm disabled:opacity-20`}
           >
-            {isUploading ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />}
+            {isUploading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
             Scanner Roster
           </button>
           <input 
@@ -200,57 +219,67 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         </div>
 
         {dutiesLoading || isUploading ? (
-          <div className="py-20 flex flex-col items-center glass-card bg-white rounded-2xl border-dashed border-2 border-gray-100">
-            <Loader2 className="animate-spin text-sncb-blue mb-4" size={32} />
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              {isUploading ? "Analyse IA en cours..." : "Chargement du Roster..."}
+          <div className="py-24 flex flex-col items-center glass-card bg-white rounded-[32px] border-dashed border-2 border-gray-100">
+            <div className="relative">
+              <div className="absolute inset-0 bg-sncb-blue/10 blur-xl rounded-full"></div>
+              <Loader2 className="animate-spin text-sncb-blue relative" size={48} />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-8 animate-pulse">
+              {isUploading ? "Intelligence Artificielle en cours..." : "Synchronisation Roster..."}
             </p>
           </div>
         ) : duties.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {duties.map(duty => (
-              <div key={duty.id} className="glass-card p-5 bg-white border border-gray-100 rounded-xl flex items-center justify-between group hover:border-sncb-blue/30 transition-all shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-50 rounded-xl flex flex-col items-center justify-center border border-gray-100">
-                    <span className="text-xs font-black text-sncb-blue leading-none">{duty.code}</span>
-                    <span className="text-[7px] font-black text-gray-400 uppercase mt-1">TOUR</span>
+              <div key={duty.id} className="glass-card p-6 bg-white border border-gray-100 rounded-2xl flex items-center justify-between group hover:border-sncb-blue/30 transition-all shadow-sm">
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex flex-col items-center justify-center border border-gray-100 group-hover:bg-blue-50 transition-colors">
+                    <span className="text-sm font-black text-sncb-blue leading-none">{duty.code}</span>
+                    <span className="text-[7px] font-black text-gray-400 uppercase mt-1.5">TOUR</span>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-black text-gray-800">{duty.start_time} - {duty.end_time}</span>
-                      <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-100 text-sncb-blue rounded uppercase">{duty.type}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base font-black text-gray-800 tracking-tight">{duty.start_time} — {duty.end_time}</span>
+                      <span className="text-[8px] font-black px-2 py-0.5 bg-blue-100 text-sncb-blue rounded-lg uppercase">{duty.type}</span>
                     </div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase mt-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                       {new Date(duty.date).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', weekday: 'short' })}
                     </p>
                   </div>
                 </div>
                 <button 
                   onClick={() => removeDuty(duty.id)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                  title="Supprimer cette prestation"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={18} />
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <div className="py-20 text-center glass-card bg-white border-2 border-dashed border-gray-100 rounded-3xl">
-             <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-200">
-               <FileText size={32} />
+          <div className="py-24 text-center glass-card bg-white border-2 border-dashed border-gray-100 rounded-[32px] flex flex-col items-center">
+             <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mb-6 text-gray-200">
+               <FileText size={40} />
              </div>
-             <p className="text-[11px] font-black text-gray-300 uppercase tracking-widest italic">Aucune prestation chargée</p>
+             <h4 className="text-xs font-black text-gray-300 uppercase tracking-[0.2em] italic">Aucune prestation chargée</h4>
+             <p className="text-[10px] text-gray-400 mt-2 font-medium max-w-[240px] mx-auto leading-relaxed">
+               Importez votre planning pour que l'IA puisse vous proposer des échanges pertinents.
+             </p>
           </div>
         )}
       </section>
 
       {user?.onboardingCompleted && (
-        <div className="flex justify-center pt-10">
+        <div className="flex justify-center pt-10 border-t border-gray-100">
           <button 
             onClick={onNext}
-            className="px-12 py-5 bg-sncb-blue text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
+            className="px-14 py-6 bg-sncb-blue text-white rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-4"
           >
-            Étape Suivante : Mes Préférences
+            Passer aux Préférences
+            <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+              <CheckCircle size={14} />
+            </div>
           </button>
         </div>
       )}
