@@ -11,16 +11,23 @@ class DutyService {
     return client;
   }
 
-  // Updated getUserDuties to fix call in hook
+  /**
+   * Récupère les prestations d'un utilisateur spécifique.
+   * Filtrage effectué côté serveur via .eq('user_id', userId) pour la sécurité et la performance.
+   */
   async getUserDuties(userId: string): Promise<Duty[]> {
     const client = this.checkConfig();
+    
     const { data, error } = await client
       .from('duties')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', userId) // Filtrage Supabase côté serveur
       .order('date', { ascending: true });
     
-    if (error) throw error;
+    if (error) {
+      console.error("[DutyService] Erreur de récupération:", error);
+      throw error;
+    }
     return data || [];
   }
 
@@ -36,7 +43,6 @@ class DutyService {
     return data;
   }
 
-  // Added updateDuty to fix call in hook
   async updateDuty(id: string, updates: Partial<Duty>): Promise<Duty> {
     const client = this.checkConfig();
     const { data, error } = await client

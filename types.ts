@@ -33,11 +33,11 @@ export interface Duty {
   user_id?: string;
   code: string;
   type: 'Omnibus' | 'IC' | 'L' | 'P' | 'S' | 'R' | 'VK' | 'CW' | 'RT' | 'ZM' | 'FL' | 'MA';
-  relations: string[];
-  compositions: string[];
+  relations?: string[];
+  compositions?: string[];
   destinations: string[];
-  startTime: string;
-  endTime: string;
+  start_time: string;
+  end_time: string;
   date: string;
   duration?: number;
   isNightShift?: boolean;
@@ -76,7 +76,6 @@ export interface SwapOffer {
   requestCount?: number;
 }
 
-/** Fix: Added missing Station interface */
 export interface Station {
   code: string;
   name: string;
@@ -84,7 +83,6 @@ export interface Station {
   uicCode: string | null;
 }
 
-/** Fix: Added missing DTO and Validation types */
 export type CreateDutyDTO = Omit<Duty, 'id'>;
 
 export interface DutyValidationResult {

@@ -72,9 +72,9 @@ const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 mb-8">
                  <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl font-black text-slate-900">{swap.offeredDuty.startTime}</span>
+                      <span className="text-2xl font-black text-slate-900">{swap.offeredDuty.start_time}</span>
                       <Repeat size={16} className="text-slate-300" />
-                      <span className="text-2xl font-black text-slate-900">{swap.offeredDuty.endTime}</span>
+                      <span className="text-2xl font-black text-slate-900">{swap.offeredDuty.end_time}</span>
                     </div>
                     <span className="text-[10px] font-black text-sncb-blue bg-white px-3 py-1 rounded-lg shadow-sm">
                       TOUR {swap.offeredDuty.code}

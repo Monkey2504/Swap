@@ -20,7 +20,7 @@ const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<AppPage>('dashboard');
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { duties, refresh } = useDuties(user?.id);
+  const { duties, refresh, isLoading: dutiesLoading } = useDuties(user?.id);
 
   const init = useCallback(async () => {
     try {
@@ -49,11 +49,12 @@ const App: React.FC = () => {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-[#F3F4F6]">
         <div className="w-12 h-12 border-4 border-[#003399]/20 border-t-[#003399] rounded-full animate-spin mb-4"></div>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-[#003399]">Initialisation...</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-[#003399]">Initialisation SwapACT...</p>
       </div>
     );
   }
 
+  // 1. LOGIN SI NON CONNECTÉ
   if (!user) {
     return (
       <div className="h-screen w-full bg-[#003399] flex items-center justify-center p-6">
@@ -62,10 +63,29 @@ const App: React.FC = () => {
     );
   }
 
+  // 2. IDENTIFICATION FORCEE SI PROFIL INCOMPLET
+  if (!user.onboardingCompleted) {
+    return (
+      <Suspense fallback={<div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-sncb-blue" /></div>}>
+        <div className="h-screen w-full overflow-y-auto bg-slate-50 p-4 md:p-10">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4 mb-10 justify-center md:justify-start">
+              <div className="w-12 h-12 bg-sncb-blue rounded-2xl flex items-center justify-center text-white shadow-xl shadow-sncb-blue/20">
+                <Train size={24} />
+              </div>
+              <h1 className="text-2xl font-black text-sncb-blue uppercase italic tracking-tighter">Bienvenue sur <span className="text-slate-400">SwapACT</span></h1>
+            </div>
+            <ProfilePage onNext={() => {}} duties={duties} dutiesLoading={dutiesLoading} />
+          </div>
+        </div>
+      </Suspense>
+    );
+  }
+
+  // 3. APP NORMALE SI PROFIL OK
   return (
     <ErrorBoundary>
       <div className="app-container">
-        {/* Header Mobile */}
         <header className="mobile-header">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-[#003399] rounded flex items-center justify-center">
@@ -78,10 +98,8 @@ const App: React.FC = () => {
           </button>
         </header>
 
-        {/* Overlay Mobile */}
         {isSidebarOpen && <div className="sidebar-overlay" onClick={closeSidebar}></div>}
 
-        {/* Sidebar SNCB */}
         <aside className={`sidebar-sncb ${isSidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-logo">
             <div className="w-10 h-10 bg-white rounded flex items-center justify-center shadow-lg">
@@ -89,7 +107,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex-grow">
               <span className="text-lg font-extrabold tracking-tight block">SNCB</span>
-              <span className="text-[9px] font-bold opacity-60 uppercase tracking-widest">Personnel de Bord</span>
+              <span className="text-[9px] font-bold opacity-60 uppercase tracking-widest">SwapACT Premium</span>
             </div>
             <button onClick={closeSidebar} className="md:hidden p-2">
               <X size={20} />
@@ -99,18 +117,16 @@ const App: React.FC = () => {
           <nav className="flex-grow py-6 overflow-y-auto custom-scrollbar">
             <NavItem active={currentPage === 'dashboard'} onClick={() => navigateTo('dashboard')} icon={LayoutDashboard} label="Tableau de Bord" />
             <NavItem active={currentPage === 'profile'} onClick={() => navigateTo('profile')} icon={List} label="Mon Roster" />
-            <NavItem active={currentPage === 'swaps'} onClick={() => navigateTo('swaps')} icon={Repeat} label="Permutes" />
+            <NavItem active={currentPage === 'swaps'} onClick={() => navigateTo('swaps')} icon={Repeat} label="Bourse d'Échanges" />
             <NavItem active={currentPage === 'dictionary'} onClick={() => navigateTo('dictionary')} icon={BookOpen} label="Codes Gares" />
             <NavItem active={currentPage === 'preferences'} onClick={() => navigateTo('preferences')} icon={Settings} label="Mes Préférences" />
           </nav>
 
           <div className="p-6 border-t border-white/10 bg-black/5">
             <div className="mb-4">
-              <p className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">Connecté</p>
               <p className="text-xs font-bold truncate">{user.firstName} {user.lastName}</p>
-              <p className="text-[9px] opacity-60 uppercase">{user.depot || 'Sans Dépôt'}</p>
+              <p className="text-[9px] opacity-60 uppercase tracking-wider">{user.depot || 'Sans Dépôt'}</p>
             </div>
-            
             <button 
               onClick={() => { authService.signOut(); logout(); }}
               className="w-full flex items-center justify-center gap-2 py-3 rounded bg-white/10 hover:bg-white/20 transition-all font-bold text-[10px] uppercase tracking-wider"
@@ -121,11 +137,10 @@ const App: React.FC = () => {
           </div>
         </aside>
 
-        {/* Zone de travail */}
         <main className="main-content custom-scrollbar">
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-[#003399]" /></div>}>
             {currentPage === 'dashboard' && <DashboardPage duties={duties} />}
-            {currentPage === 'profile' && <ProfilePage onNext={() => navigateTo('preferences')} duties={duties} dutiesLoading={false} />}
+            {currentPage === 'profile' && <ProfilePage onNext={() => navigateTo('preferences')} duties={duties} dutiesLoading={dutiesLoading} />}
             {currentPage === 'preferences' && <PreferencesPage preferences={preferences} setPreferences={() => {}} onNext={() => navigateTo('swaps')} />}
             {currentPage === 'swaps' && <SwapBoard user={user} preferences={preferences} onRefreshDuties={async () => { refresh(); }} />}
             {currentPage === 'dictionary' && <StationDictionary />}

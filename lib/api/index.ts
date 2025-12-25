@@ -7,61 +7,50 @@ export { preferencesService } from './preferencesService';
 
 /**
  * Formate une erreur de manière exhaustive pour garantir un affichage textuel propre.
- * Empêche systématiquement l'affichage de "[object Object]" en inspectant les structures
- * d'erreurs courantes (Supabase, PostgREST, etc.).
+ * Empêche systématiquement l'affichage de "[object Object]".
  */
 export const formatError = (err: any): string => {
-  if (!err) return "Incident technique indéterminé.";
+  if (!err) return "Une erreur inconnue s'est produite.";
   
-  // Cas d'une chaîne directe
+  // Si c'est déjà une chaîne de caractères
   if (typeof err === 'string') return err;
   
-  // Si c'est un objet Error standard
-  if (err instanceof Error) {
-    return err.message;
-  }
-
-  // Fonction récursive pour chercher un message textuel dans un objet inconnu
-  const findMessage = (obj: any): string | null => {
-    if (!obj || typeof obj !== 'object') return null;
+  // Extraction récursive du message d'erreur
+  const extractMessage = (obj: any): string | null => {
+    if (!obj) return null;
+    if (typeof obj === 'string') return obj;
     
-    // Propriétés standard dans l'ordre de pertinence
-    const keys = ['message', 'error_description', 'error', 'details', 'hint', 'msg'];
+    // Liste des propriétés courantes contenant un message d'erreur
+    const keys = ['message', 'error_description', 'error', 'details', 'hint', 'code', 'statusText', 'reason'];
     for (const key of keys) {
-      const val = obj[key];
-      if (typeof val === 'string' && val.trim() !== '' && val !== '[object Object]') {
-        return val;
+      if (obj[key] && typeof obj[key] === 'string' && obj[key] !== '[object Object]') {
+        return obj[key];
       }
     }
 
-    // Si on a une propriété 'error' qui est elle-même un objet (cas Supabase)
+    // Gestion spécifique des erreurs de l'API Gemini / Google
+    if (obj.status === 403) return "Accès refusé : Vérifiez votre clé API Gemini.";
+    if (obj.status === 401) return "Authentification échouée ou clé API invalide.";
+    if (obj.status === 429) return "Trop de requêtes : Veuillez patienter un moment.";
+    
+    // Erreurs Supabase imbriquées
     if (obj.error && typeof obj.error === 'object') {
-      return findMessage(obj.error);
+      return extractMessage(obj.error);
     }
 
     return null;
   };
 
-  const extracted = findMessage(err);
-  if (extracted) {
-    // Traductions SNCB Contextuelles
-    const msg = extracted.toLowerCase();
-    if (msg.includes('invalid login credentials')) return "Identifiants (E-mail ou Mot de passe) erronés.";
-    if (msg.includes('user already registered')) return "Un agent est déjà enregistré avec cet e-mail.";
-    if (msg.includes('network error') || msg.includes('fetch')) return "Connexion au Cloud SNCB instable.";
-    if (msg.includes('email not confirmed')) return "Veuillez confirmer votre e-mail professionnel.";
-    return extracted;
-  }
+  const message = extractMessage(err);
+  if (message) return message;
 
-  // Fallback ultime : sérialisation JSON si l'objet n'est pas vide
+  // Fallback ultime : sérialisation JSON partielle ou type
   try {
-    const stringified = JSON.stringify(err);
-    if (stringified !== "{}" && stringified !== "null") {
-      return `Détail technique : ${stringified.substring(0, 150)}`;
-    }
+    const str = JSON.stringify(err);
+    if (str !== '{}') return `Erreur technique : ${str.slice(0, 100)}...`;
   } catch (e) {
-    // ignore
+    // ignorer l'erreur de sérialisation
   }
 
-  return "Erreur technique SNCB (Code 500). Veuillez contacter le support.";
+  return `Erreur de type : ${typeof err}. Veuillez contacter le support.`;
 };

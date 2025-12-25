@@ -1,5 +1,5 @@
 
-import React, { Component, ReactNode, ErrorInfo, useState, useCallback } from 'react';
+import React, { ReactNode, ErrorInfo, useState, useCallback } from 'react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -25,7 +25,7 @@ interface ErrorBoundaryState {
  * - Stratégie de récupération hiérarchique
  * - Journalisation structurée
  */
-// Fix: Explicitly extend React.Component to ensure props, state, and setState are correctly recognized by TypeScript.
+// Fix: Explicitly using React.Component to ensure props, state, and setState are correctly recognized by TypeScript.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   private static MAX_RECOVERY_ATTEMPTS = 3;
   private static RECOVERY_COOLDOWN_MS = 5000; // 5 secondes entre les erreurs
@@ -109,7 +109,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
    * Journalisation structurée des erreurs
    */
   private logErrorToService(error: Error, metadata: Record<string, any> = {}) {
-    // Fix: access state from React.Component.
+    // Fix: Access state inherited from React.Component.
     const currentState = this.state;
     const logEntry = {
       incidentId: currentState.incidentId,
@@ -171,7 +171,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
    * Capture les informations d'erreur détaillées
    */
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Fix: Access to state and props works correctly within React.Component lifecycle method.
+    // Fix: Access to state and props through 'this' works correctly in React.Component.
     const { incidentId } = this.state;
     const { onError } = this.props;
 
@@ -185,7 +185,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       onError(error, errorInfo);
     }
 
-    // Fix: setState is correctly inherited from React.Component.
+    // Fix: setState is inherited from React.Component.
     this.setState({
       errorInfo,
     });
@@ -216,7 +216,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
    * Réinitialise l'état d'erreur
    */
   private resetErrorState() {
-    // Fix: setState call is now recognized as a member of ErrorBoundary through inheritance.
+    // Fix: setState call is recognized through inheritance.
     this.setState({
       hasError: false,
       error: null,
@@ -232,7 +232,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
    */
   private handleManualRetry() {
     const now = Date.now();
-    // Fix: State access recognized correctly in class context.
+    // Fix: State access recognized correctly in class context extending React.Component.
     const { lastErrorTime, recoveryAttempts } = this.state;
 
     // Vérifier le cooldown entre les tentatives
@@ -291,7 +291,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
    * Affiche le composant de fallback personnalisé ou l'UI par défaut
    */
   render() {
-    // Fix: Props and State access recognized correctly in render method.
+    // Fix: Props and State access recognized correctly in React.Component render method.
     const { hasError, error, errorInfo, incidentId, recoveryAttempts, isPermanentFailure } = this.state;
     const { children, fallback } = this.props;
 
