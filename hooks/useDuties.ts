@@ -22,6 +22,7 @@ export const useDuties = (
       const data = await dutyService.getUserDuties(userId);
       setDuties(data || []);
     } catch (err: any) {
+      // Amélioration de la capture d'erreur pour éviter [object Object]
       const errorMsg = formatError(err);
       console.error("[useDuties] Erreur lors de la récupération:", err);
       setError(errorMsg);
@@ -37,17 +38,6 @@ export const useDuties = (
       return created;
     } catch (err) {
       console.error("[useDuties] Erreur lors de l'ajout:", err);
-      throw err;
-    }
-  }, [fetchDuties]);
-
-  const addDuties = useCallback(async (dutiesData: CreateDutyDTO[]) => {
-    try {
-      const created = await dutyService.createDuties(dutiesData);
-      await fetchDuties();
-      return created;
-    } catch (err) {
-      console.error("[useDuties] Erreur lors de l'ajout groupé:", err);
       throw err;
     }
   }, [fetchDuties]);
@@ -75,7 +65,6 @@ export const useDuties = (
     fetchDuties,
     refresh: fetchDuties,
     addDuty,
-    addDuties,
     removeDuty
   };
 };

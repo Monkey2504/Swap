@@ -11,13 +11,17 @@ class DutyService {
     return client;
   }
 
+  /**
+   * Récupère les prestations d'un utilisateur spécifique.
+   * Filtrage effectué côté serveur via .eq('user_id', userId) pour la sécurité et la performance.
+   */
   async getUserDuties(userId: string): Promise<Duty[]> {
     const client = this.checkConfig();
     
     const { data, error } = await client
       .from('duties')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', userId) // Filtrage Supabase côté serveur
       .order('date', { ascending: true });
     
     if (error) {
@@ -37,17 +41,6 @@ class DutyService {
     
     if (error) throw error;
     return data;
-  }
-
-  async createDuties(duties: CreateDutyDTO[]): Promise<Duty[]> {
-    const client = this.checkConfig();
-    const { data, error } = await client
-      .from('duties')
-      .insert(duties)
-      .select();
-    
-    if (error) throw error;
-    return data || [];
   }
 
   async updateDuty(id: string, updates: Partial<Duty>): Promise<Duty> {
