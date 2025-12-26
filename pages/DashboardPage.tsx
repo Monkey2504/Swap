@@ -5,9 +5,10 @@ import { Train, Bell, Calendar, ChevronRight, ArrowRight, ShieldCheck, CheckCirc
 
 interface DashboardPageProps {
   duties: Duty[];
+  onNavigate: (page: 'dashboard' | 'profile' | 'preferences' | 'swaps' | 'dictionary') => void;
 }
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ duties }) => {
+const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => {
   const notifications: AppNotification[] = [
     { id: '1', title: 'Bourse Active', message: 'Des collègues cherchent à échanger des services ce weekend.', type: 'swap_request', read: false, createdAt: '10:45' },
     { id: '2', title: 'Sécurité RGPS', message: 'Votre planning respecte les temps de repos réglementaires.', type: 'success', read: true, createdAt: 'Hier' }
@@ -114,7 +115,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties }) => {
                     <Calendar size={40} />
                   </div>
                   <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.3em] mb-6">Aucune prestation chargée</h4>
-                  <button onClick={() => window.location.hash = '#profile'} className="px-8 py-4 bg-sncb-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Scanner mon roster</button>
+                  <button 
+                    onClick={() => onNavigate('profile')} 
+                    className="px-8 py-4 bg-sncb-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Scanner mon roster
+                  </button>
                 </div>
               )}
             </div>
@@ -155,7 +161,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties }) => {
                20 collègues sont en ligne <br/> dans votre dépôt.
              </p>
              <button 
-                onClick={() => window.location.hash = '#swaps'}
+                onClick={() => onNavigate('swaps')}
                 className="w-full py-5 bg-white text-sncb-blue rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-blue-50 transition-all shadow-xl active:scale-95"
              >
                Voir les échanges

@@ -139,7 +139,7 @@ const App: React.FC = () => {
 
         <main className="main-content custom-scrollbar">
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin text-[#003399]" /></div>}>
-            {currentPage === 'dashboard' && <DashboardPage duties={duties} />}
+            {currentPage === 'dashboard' && <DashboardPage duties={duties} onNavigate={navigateTo} />}
             {currentPage === 'profile' && <ProfilePage onNext={() => navigateTo('preferences')} duties={duties} dutiesLoading={dutiesLoading} />}
             {currentPage === 'preferences' && <PreferencesPage preferences={preferences} setPreferences={() => {}} onNext={() => navigateTo('swaps')} />}
             {currentPage === 'swaps' && <SwapBoard user={user} preferences={preferences} onRefreshDuties={async () => { refresh(); }} />}
