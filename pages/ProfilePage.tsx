@@ -45,7 +45,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       try {
         const base64 = reader.result as string;
         
-        // APPEL AU PROXY SÉCURISÉ
+        // APPEL AU PROXY SÉCURISÉ (API Serverless)
         const response = await fetch('/api/parse-roster', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -55,18 +55,29 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           })
         });
 
+        // *** BLOC DE VÉRIFICATION ROBUSTE ***
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Erreur HTTP reçue. Corps de la réponse (non-JSON) :", errorText);
+          
+          let errorMessage = `Erreur du serveur (Statut ${response.status}).`;
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorMessage = errorJson.error || errorJson.details || errorMessage;
+          } catch (e) {
+            // Pas de JSON dans l'erreur, on garde le message brut ou générique
+          }
+          throw new Error(errorMessage);
+        }
+
         const result = await response.json();
         
-        if (!response.ok) {
-          throw new Error(result.error || result.details || "Échec de l'analyse.");
-        }
-        
         if (!result.services || result.services.length === 0) {
-          throw new Error("Aucun service n'a pu être extrait. Vérifiez la qualité du document.");
+          throw new Error("Aucun service n'a pu être extrait. Vérifiez que le document est un Roster SNCB valide.");
         }
         
         setPreviewDuties(result.services);
-        setSuccessMessage(`${result.services.length} services identifiés. Veuillez vérifier avant l'import.`);
+        setSuccessMessage(`${result.services.length} prestations identifiées par l'IA.`);
       } catch (err: any) {
         setError(formatError(err));
       } finally {
@@ -93,7 +104,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         user_id: user.id 
       }));
       await addDuties(dutiesToCreate as any);
-      setSuccessMessage("Planning SNCB importé avec succès !");
+      setSuccessMessage("Votre planning a été importé avec succès.");
       setPreviewDuties(null);
     } catch (err) {
       setError(formatError(err));
@@ -104,9 +115,9 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
   return (
     <div className="space-y-8 animate-slide-up pb-32 max-w-5xl mx-auto px-4">
-      {/* ALERTS ET FEEDBACK */}
+      {/* NOTIFICATIONS */}
       {(ui.error || ui.success || dutiesError) && (
-        <div className={`p-5 rounded-3xl border flex items-center gap-4 shadow-xl animate-in slide-in-from-top-4 duration-300 ${
+        <div className={`p-5 rounded-3xl border flex items-center gap-4 shadow-xl animate-in fade-in slide-in-from-top-4 duration-300 ${
           ui.error || dutiesError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700'
         }`}>
           {ui.error || dutiesError ? <XCircle size={22} /> : <CheckCircle size={22} />}
@@ -119,8 +130,8 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         </div>
       )}
 
-      {/* CARTE D'IDENTITÉ AGENT */}
-      <section className="glass-card p-8 md:p-12 bg-white shadow-2xl rounded-[40px] border-slate-50 relative overflow-hidden transition-all">
+      {/* PROFIL AGENT */}
+      <section className="glass-card p-8 md:p-12 bg-white shadow-2xl rounded-[40px] border-slate-50 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-10 opacity-5">
           <Train size={140} className="text-sncb-blue" />
         </div>
@@ -130,8 +141,8 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
              <Info size={28} />
            </div>
            <div>
-             <h3 className="text-lg font-black text-sncb-blue uppercase tracking-widest italic leading-none">Identité Personnel</h3>
-             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Données synchronisées Cloud SNCB</p>
+             <h3 className="text-lg font-black text-sncb-blue uppercase tracking-widest italic leading-none">Mon Profil Agent</h3>
+             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Identification communautaire SNCB</p>
            </div>
         </div>
 
@@ -143,7 +154,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
               className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-sm font-bold focus:ring-8 focus:ring-sncb-blue/5 focus:border-sncb-blue transition-all outline-none" 
               value={editFirstName} 
               onChange={e => setEditFirstName(e.target.value)} 
-              placeholder="Ex: Marc"
+              placeholder="Ex: Philippe"
             />
           </div>
           <div className="space-y-2">
@@ -153,17 +164,17 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
               className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-sm font-bold focus:ring-8 focus:ring-sncb-blue/5 focus:border-sncb-blue transition-all outline-none" 
               value={editLastName} 
               onChange={e => setEditLastName(e.target.value)} 
-              placeholder="Ex: Vandamme"
+              placeholder="Ex: De Smet"
             />
           </div>
           <div className="md:col-span-2 space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dépôt Principal</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dépôt d'attache</label>
             <select 
               className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-sm font-bold appearance-none outline-none focus:ring-8 focus:ring-sncb-blue/5 focus:border-sncb-blue transition-all" 
               value={editDepot} 
               onChange={e => setEditDepot(e.target.value)}
             >
-              <option value="">Choisir mon dépôt...</option>
+              <option value="">Sélectionnez un dépôt...</option>
               {DEPOTS.map(d => <option key={d.code} value={d.code}>{d.name} ({d.code})</option>)}
             </select>
           </div>
@@ -174,18 +185,18 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           disabled={!editFirstName || !editDepot || isSaving} 
           className="w-full mt-12 py-6 bg-sncb-blue text-white rounded-[24px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-sncb-blue/20 hover:scale-[1.01] transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-4 group"
         >
-          {isSaving ? <Loader2 className="animate-spin" size={20} /> : "Valider mon profil agent"}
+          {isSaving ? <Loader2 className="animate-spin" size={20} /> : "Mettre à jour mon profil"}
           {!isSaving && <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />}
         </button>
       </section>
 
-      {/* SCANNER DE ROSTER */}
+      {/* SCANNER SÉCURISÉ */}
       <section className="space-y-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 px-2">
           <div className="space-y-2">
-            <h3 className="text-xl font-black text-sncb-blue uppercase tracking-widest italic">Roster Scanner</h3>
+            <h3 className="text-xl font-black text-sncb-blue uppercase tracking-widest italic leading-none">Roster Intelligence</h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <Sparkles size={12} className="text-sncb-blue" /> IA Vision & Proxy Cloud
+              <Sparkles size={12} className="text-sncb-blue" /> Cloud-Proxy IA Extraction
             </p>
           </div>
           {!isUploading && !previewDuties && (
@@ -193,7 +204,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
               onClick={() => fileInputRef.current?.click()} 
               className="px-10 py-5 bg-white border-2 border-sncb-blue text-sncb-blue rounded-[24px] font-black text-[11px] uppercase tracking-widest flex items-center gap-4 hover:bg-blue-50 transition-all shadow-xl active:scale-95"
             >
-              <Scan size={24} /> Importer mon planning
+              <Scan size={24} /> Scanner un planning
             </button>
           )}
           <input 
@@ -205,10 +216,9 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           />
         </div>
 
-        {/* ÉCRAN DE CHARGEMENT LASER (ANIMATION SÉCURISÉE) */}
+        {/* ANIMATION DE SCAN LASER */}
         {isUploading && (
-          <div className="relative h-80 glass-card bg-white rounded-[48px] border-dashed border-2 border-sncb-blue/10 overflow-hidden flex flex-col items-center justify-center shadow-2xl animate-in fade-in duration-500">
-            {/* LASER ANIMATION */}
+          <div className="relative h-80 glass-card bg-white rounded-[48px] border-dashed border-2 border-sncb-blue/10 overflow-hidden flex flex-col items-center justify-center shadow-2xl">
             <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-sncb-blue to-transparent shadow-[0_0_30px_#003399] animate-laser-pass z-10"></div>
             
             <div className="relative mb-8">
@@ -219,24 +229,24 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             <div className="text-center space-y-4 relative z-10 px-8">
                <div className="flex items-center justify-center gap-3">
                  <Loader2 className="animate-spin text-sncb-blue" size={20} />
-                 <p className="text-[12px] font-black text-sncb-blue uppercase tracking-[0.5em] italic">Analyse en cours...</p>
+                 <p className="text-[12px] font-black text-sncb-blue uppercase tracking-[0.5em] italic">Analyse IA...</p>
                </div>
                <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed max-w-xs mx-auto">
-                 L'IA de SwapACT décode les tours de service de votre document.
+                 Extraction sécurisée des services depuis votre Roster SNCB.
                </p>
             </div>
           </div>
         )}
 
-        {/* PRÉVISUALISATION ÉDITABLE DES SERVICES IA */}
+        {/* APERÇU ÉDITABLE */}
         {previewDuties && (
           <div className="glass-card bg-white p-8 md:p-12 rounded-[48px] border-2 border-sncb-blue shadow-2xl animate-in zoom-in-95 duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
               <div className="flex items-center gap-5">
                 <div className="p-4 bg-blue-50 text-sncb-blue rounded-2xl shadow-inner"><Table size={32} /></div>
                 <div>
-                   <h4 className="text-lg font-black text-sncb-blue uppercase tracking-widest italic leading-none">Contrôle de l'import</h4>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Supprimez les lignes erronées avant validation</p>
+                   <h4 className="text-lg font-black text-sncb-blue uppercase tracking-widest italic leading-none">Validation des données</h4>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Vérifiez et éditez les prestations détectées</p>
                 </div>
               </div>
               <button 
@@ -257,7 +267,6 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                   <div className="flex items-center gap-8">
                     <div className="w-16 h-16 bg-white rounded-2xl flex flex-col items-center justify-center font-black text-sncb-blue text-sm shadow-sm italic group-hover:bg-sncb-blue group-hover:text-white transition-all">
                       {d.code}
-                      <span className="text-[7px] uppercase mt-1 opacity-50 group-hover:opacity-100">Tour</span>
                     </div>
                     <div>
                       <div className="flex items-center gap-4">
@@ -273,15 +282,10 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                   </div>
                   
                   <div className="flex items-center gap-6">
-                    <div className="hidden lg:flex gap-3">
-                      {d.destinations?.slice(0, 2).map((dest, idx) => (
-                        <span key={idx} className="text-[10px] font-black bg-white px-4 py-2 rounded-xl border border-slate-100 uppercase tracking-tight shadow-sm">{dest}</span>
-                      ))}
-                    </div>
                     <button 
                       onClick={() => removeFromPreview(i)} 
                       className="p-4 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
-                      title="Ignorer ce service"
+                      title="Retirer ce service"
                     >
                       <Trash2 size={24} />
                     </button>
@@ -295,19 +299,19 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                  onClick={() => setPreviewDuties(null)} 
                  className="py-6 bg-slate-100 text-slate-500 rounded-[24px] font-black text-[12px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
                >
-                 Abandonner l'import
+                 Tout annuler
                </button>
                <button 
                  onClick={confirmImport} 
-                 className="py-6 bg-emerald-500 text-white rounded-[24px] font-black text-[12px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-4 hover:bg-emerald-600 transition-all active:scale-95 group"
+                 className="py-6 bg-emerald-500 text-white rounded-[24px] font-black text-[12px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-4 hover:bg-emerald-600 transition-all active:scale-95"
                >
-                 <Save size={24} /> Finaliser l'Importation
+                 <Save size={24} /> Enregistrer le planning
                </button>
             </div>
           </div>
         )}
 
-        {/* LISTE DES TOURS DE SERVICE ACTUELS */}
+        {/* LISTE DES TOURS ACTUELS */}
         {!previewDuties && duties.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {duties.map(duty => (
@@ -318,7 +322,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                 <div className="flex items-center gap-5">
                   <div className="w-16 h-16 bg-slate-50 rounded-2xl flex flex-col items-center justify-center group-hover:bg-blue-50 transition-colors shadow-inner">
                     <span className="text-xl font-black text-sncb-blue italic leading-none">{duty.code}</span>
-                    <span className="text-[9px] font-black text-slate-300 uppercase mt-2 tracking-widest">SNCB</span>
+                    <span className="text-[9px] font-black text-slate-300 uppercase mt-2 tracking-widest">Tour</span>
                   </div>
                   <div>
                     <p className="text-xl font-black text-slate-800 tracking-tight">
@@ -346,9 +350,9 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             <div className="w-24 h-24 bg-white rounded-[32px] flex items-center justify-center mb-8 text-slate-100 shadow-sm">
               <FileText size={48} strokeWidth={1} />
             </div>
-            <h4 className="text-sm font-black text-slate-300 uppercase tracking-[0.4em] mb-4 italic">Aucun service chargé</h4>
+            <h4 className="text-sm font-black text-slate-300 uppercase tracking-[0.4em] mb-4 italic">Aucun planning</h4>
             <p className="text-xs text-slate-400 font-bold uppercase max-w-xs mx-auto leading-relaxed px-6">
-              Votre bourse aux échanges est vide. Importez votre Roster pour commencer à switcher avec vos collègues.
+              Importez votre Roster pour voir vos prestations et commencer les échanges.
             </p>
           </div>
         )}
@@ -360,7 +364,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             onClick={onNext} 
             className="px-20 py-7 bg-sncb-blue text-white rounded-[40px] font-black uppercase text-[14px] tracking-[0.2em] shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-6 group"
           >
-            Aller vers la Bourse <ArrowRight size={28} className="group-hover:translate-x-2 transition-transform" />
+            Passer à la Bourse <ArrowRight size={28} className="group-hover:translate-x-2 transition-transform" />
           </button>
         </div>
       )}
