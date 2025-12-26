@@ -2,26 +2,21 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Configuration du matcher pour le middleware.
- * On exclut explicitement les routes API critiques pour éviter les redirections vers /login
- * lors d'appels asynchrones ou en mode navigation privée (incognito).
+ * Étape 16 : Diagnostic de l'erreur MIDDLEWARE_INVOCATION_FAILED
+ * Nous simplifions le middleware au maximum pour vérifier si le crash 
+ * est dû à l'exécution même du middleware sur l'infrastructure Vercel.
  */
 export const config = {
-  matcher: [
-    /*
-     * Match toutes les routes sauf celles définies ci-dessous :
-     * - api/parse-roster (Analyse IA des plannings)
-     * - api/auth (Supabase Auth)
-     * - api/webhooks
-     * - _next/static, _next/image, favicon.ico
-     */
-    '/((?!api/parse-roster|api/auth|api/webhooks|_next/static|_next/image|favicon.ico).*)',
-  ],
+  /**
+   * Le matcher exclut les assets et l'auth pour tester la stabilité sur les autres routes.
+   */
+  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico).*)'], 
 };
 
 export async function middleware(req: NextRequest) {
-  // TEST 1 (Désactivation temporaire) : 
-  // On laisse passer toutes les requêtes matchées pour isoler si l'erreur 
-  // MIDDLEWARE_INVOCATION_FAILED provient de la logique interne (cookies/session).
-  return NextResponse.next();
+  /**
+   * Retourne le contrôle immédiatement sans aucune logique Supabase ou cookie.
+   * Cette version "vierge" permet de confirmer la validité de l'environnement d'exécution.
+   */
+  return NextResponse.next(); 
 }
