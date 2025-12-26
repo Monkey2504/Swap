@@ -1,6 +1,6 @@
 
 import { getSupabase, isSupabaseConfigured } from '../supabase';
-import { SwapOffer, UserPreference, UserProfile, Duty, RealtimeSwapPayload, SwapRequest } from '../../types';
+import { SwapOffer, UserPreference, UserProfile, Duty, SwapRequest } from '../../types';
 import { matchSwaps as matchWithAI } from '../../services/geminiService';
 
 class SwapService {
@@ -12,57 +12,46 @@ class SwapService {
     return client;
   }
 
-  async getAvailableSwaps(
-    depot?: string, 
-    excludeUserId?: string, 
-    limit: number = 20, 
-    offset: number = 0
-  ): Promise<SwapOffer[]> {
+  async getAvailableSwaps(depot?: string, excludeUserId?: string): Promise<SwapOffer[]> {
     const client = this.checkConfig();
-    
     let query = client
       .from('swap_offers')
-      .select(`
-        *,
-        swap_requests(count)
-      `)
+      .select('*, swap_requests(count)')
       .eq('status', 'active');
 
-    if (depot) {
-      query = query.eq('depot', depot);
-    }
+    if (depot) query = query.eq('depot', depot);
+    if (excludeUserId) query = query.neq('user_id', excludeUserId);
 
-    if (excludeUserId) {
-      query = query.neq('user_id', excludeUserId);
-    }
-
-    const { data, error } = await query
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-
     return (data || []).map(item => this.mapToSwapOffer(item));
   }
 
-  private mapToSwapOffer(item: any): SwapOffer {
-    const nameParts = (item.user_name || '').trim().split(/\s+/);
-    const firstName = nameParts[0] || 'Agent';
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'SNCB';
+  async getMyOffersWithRequests(userId: string): Promise<any[]> {
+    const client = this.checkConfig();
+    const { data, error } = await client
+      .from('swap_offers')
+      .select('*, swap_requests(*)')
+      .eq('user_id', userId);
+    
+    if (error) throw error;
+    return data || [];
+  }
 
+  private mapToSwapOffer(item: any): SwapOffer {
     return {
       id: item.id,
       user: { 
-        firstName, 
-        lastName, 
+        id: item.user_id,
+        firstName: item.user_name?.split(' ')[0] || 'Agent', 
+        lastName: item.user_name?.split(' ').slice(1).join(' ') || 'SNCB', 
         sncbId: item.user_sncb_id 
       },
       offeredDuty: item.duty_data,
       matchScore: 0,
       matchReasons: [],
-      matchType: 'simple',
-      status: 'pending_colleague',
-      type: item.is_urgent ? 'manual_request' : 'suggested',
+      status: item.status,
+      isUrgent: item.is_urgent,
       requestCount: item.swap_requests?.[0]?.count || 0
     };
   }
@@ -80,7 +69,6 @@ class SwapService {
         is_urgent: isUrgent,
         status: 'active'
       });
-    
     if (error) throw error;
   }
 
@@ -94,50 +82,56 @@ class SwapService {
         requester_name: `${user.firstName} ${user.lastName}`.trim(),
         status: 'pending'
       });
-    
     if (error) {
       if (error.code === '23505') throw new Error("Vous avez déjà postulé à cette offre.");
       throw error;
     }
   }
 
-  subscribeToSwaps(depot: string, onNewSwap: (offer: RealtimeSwapPayload) => void) {
+  async acceptSwapRequest(offerId: string, requestId: string): Promise<void> {
     const client = this.checkConfig();
-    
-    const channel = client
-      .channel(`swaps-${depot}-${Date.now()}`) 
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'swap_offers',
-        filter: `depot=eq.${depot}`
-      }, (payload) => onNewSwap(payload.new as RealtimeSwapPayload))
-      .subscribe();
+    // 1. Accepter la requête choisie
+    const { error: err1 } = await client
+      .from('swap_requests')
+      .update({ status: 'accepted' })
+      .eq('id', requestId);
+    if (err1) throw err1;
 
-    return {
-      unsubscribe: () => client.removeChannel(channel)
-    };
+    // 2. Marquer l'offre comme "en attente TS"
+    const { error: err2 } = await client
+      .from('swap_offers')
+      .update({ status: 'pending_ts' })
+      .eq('id', offerId);
+    if (err2) throw err2;
+
+    // 3. Refuser les autres requêtes automatiquement
+    await client
+      .from('swap_requests')
+      .update({ status: 'rejected' })
+      .eq('offer_id', offerId)
+      .neq('id', requestId);
+  }
+
+  async deleteOffer(offerId: string) {
+    const client = this.checkConfig();
+    const { error } = await client.from('swap_offers').delete().eq('id', offerId);
+    if (error) throw error;
+  }
+
+  subscribeToSwaps(callback: () => void) {
+    const client = this.checkConfig();
+    return client
+      .channel('public:swaps')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'swap_offers' }, callback)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'swap_requests' }, callback)
+      .subscribe();
   }
 
   async matchSwaps(preferences: UserPreference[], offers: SwapOffer[]) {
     try {
       return await matchWithAI(preferences, offers);
     } catch (err) {
-      console.warn("[SwapService] Fallback Matching Local Heuristique");
-      
-      const likeTypes = preferences.filter(p => p.level === 'LIKE').map(p => p.value);
-      const dislikeTypes = preferences.filter(p => p.level === 'DISLIKE').map(p => p.value);
-
-      return offers.map(o => {
-        let score = 50;
-        const reasons = ["Heuristique SNCB"];
-        
-        if (likeTypes.includes(o.offeredDuty.type)) { score += 25; reasons.push(`Type ${o.offeredDuty.type} apprécié`); }
-        if (dislikeTypes.includes(o.offeredDuty.type)) { score -= 30; reasons.push(`Type ${o.offeredDuty.type} non souhaité`); }
-        if (o.type === 'manual_request') { score += 15; reasons.push("Besoin urgent"); }
-
-        return { ...o, matchScore: Math.max(0, Math.min(100, score)), matchReasons: reasons };
-      });
+      return offers.map(o => ({ ...o, matchScore: 75, matchReasons: ["Matching Standard"] }));
     }
   }
 }

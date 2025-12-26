@@ -23,7 +23,7 @@ export const useDuties = (
       setDuties(data || []);
     } catch (err: any) {
       const errorMsg = formatError(err);
-      console.error("[useDuties] Erreur lors de la récupération:", err);
+      console.error("[useDuties] Erreur lors de la récupération:", errorMsg, err);
       setError(errorMsg);
     } finally {
       setIsLoading(false);
@@ -36,8 +36,9 @@ export const useDuties = (
       await fetchDuties();
       return created;
     } catch (err) {
-      console.error("[useDuties] Erreur lors de l'ajout:", err);
-      throw err;
+      const errorMsg = formatError(err);
+      console.error("[useDuties] Erreur lors de l'ajout:", errorMsg, err);
+      throw new Error(errorMsg);
     }
   }, [fetchDuties]);
 
@@ -47,8 +48,9 @@ export const useDuties = (
       await fetchDuties();
       return created;
     } catch (err) {
-      console.error("[useDuties] Erreur lors de l'ajout groupé:", err);
-      throw err;
+      const errorMsg = formatError(err);
+      console.error("[useDuties] Erreur lors de l'ajout groupé:", errorMsg, err);
+      throw new Error(errorMsg);
     }
   }, [fetchDuties]);
 
@@ -57,8 +59,9 @@ export const useDuties = (
       await dutyService.deleteDuty(id);
       await fetchDuties();
     } catch (err) {
-      console.error("[useDuties] Erreur lors de la suppression:", err);
-      throw err;
+      const errorMsg = formatError(err);
+      console.error("[useDuties] Erreur lors de la suppression:", errorMsg, err);
+      throw new Error(errorMsg);
     }
   }, [fetchDuties]);
 
