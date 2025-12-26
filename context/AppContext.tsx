@@ -1,256 +1,336 @@
+import { Duty, PreferenceLevel, UserPreference, UserProfile, DepotRole, Station } from './types';
+import { v4 as uuidv4 } from 'uuid';
 
-import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect, useRef } from 'react';
-/* Fix: Import User as a type from @supabase/supabase-js */
-import type { User } from '@supabase/supabase-js';
-import { UserProfile, UserPreference, Duty, DepotCode } from '../types';
-import { INITIAL_PREFERENCES, DEPOT_MAP, RGPS_RULES, APP_CONFIG } from '../constants';
-import { isSupabaseConfigured } from '../lib/supabase';
-import { profileService, swapService, formatError } from '../lib/api';
+// ============== VERSION & CONFIGURATION ==============
+export const APP_VERSION = '2.5.1';
+export const APP_BUILD_DATE = '2024-12-25';
+export const MINIMUM_BROWSER_VERSION = 80;
 
-interface TechLog {
-  id: string;
-  timestamp: string;
-  message: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  source?: string;
-  metadata?: Record<string, any>;
+// ============== LEGAL & COMPLIANCE ==============
+export const LEGAL_DISCLAIMER = "Attention : Cette application est un outil d'entraide entre agents. Elle ne remplace pas les outils officiels de la SNCB. Toute permutation doit être validée par le Tableau de Service (TS) via les canaux réglementaires.";
+export const DATA_PRIVACY_NOTE = "Conformément au RGPD, vos données personnelles ne sont utilisées que pour les fonctionnalités de permutation. Vous pouvez demander leur suppression à tout moment via support@swapact.sncb.be";
+
+// ============== DEPOT CONFIGURATION ==============
+export const DEPOT_ROLES: DepotRole[] = ['Conducteur', 'Chef de train', 'Chef de bord', 'Flottant'];
+
+export interface DepotConfig {
+  code: string;
+  name: string;
+  region: 'Bruxelles' | 'Wallonie' | 'Flandre';
+  timezone: 'Europe/Brussels';
+  contactTS: string;
+  phoneTS: string;
+  emailTS: string;
+  address: string;
+  color: string;
 }
 
-interface AppState {
-  user: UserProfile | null;
-  isLoadingUser: boolean;
-  lastUserSync: number | null;
-  preferences: UserPreference[];
-  preferencesVersion: number;
-  ui: {
-    error: string | null;
-    success: string | null;
-    warning: string | null;
-    isSaving: boolean;
-    isLoading: boolean;
-  };
-  rgpdConsent: boolean;
-  techLogs: TechLog[];
-  maxLogs: number;
-  lastDutiesUpdate: number | null;
-  hasUnsyncedChanges: boolean;
-}
+export const DEPOTS: DepotConfig[] = [
+  { code: 'FBMZ', name: 'Bruxelles-Midi', region: 'Bruxelles', timezone: 'Europe/Brussels', contactTS: 'TS Bruxelles-Midi', phoneTS: '02 224 88 00', emailTS: 'ts.bruxelles-midi@sncb.be', address: 'Bd de France 85, 1070 Bruxelles', color: '#003399' },
+  { code: 'FBN', name: 'Bruxelles-Nord', region: 'Bruxelles', timezone: 'Europe/Brussels', contactTS: 'TS Bruxelles-Nord', phoneTS: '02 224 88 00', emailTS: 'ts.bruxelles-nord@sncb.be', address: 'Rue du Progrès 76, 1030 Bruxelles', color: '#0055CC' },
+  { code: 'FLG', name: 'Liège-Guillemins', region: 'Wallonie', timezone: 'Europe/Brussels', contactTS: 'TS Liège-Guillemins', phoneTS: '04 224 88 00', emailTS: 'ts.liege@sncb.be', address: 'Place des Guillemins 2, 4000 Liège', color: '#D52B1E' },
+  { code: 'FNR', name: 'Namur', region: 'Wallonie', timezone: 'Europe/Brussels', contactTS: 'TS Namur', phoneTS: '081 224 88 00', emailTS: 'ts.namur@sncb.be', address: 'Place de la Station 1, 5000 Namur', color: '#FF6B00' },
+  { code: 'FMS', name: 'Mons', region: 'Wallonie', timezone: 'Europe/Brussels', contactTS: 'TS Mons', phoneTS: '065 224 88 00', emailTS: 'ts.mons@sncb.be', address: 'Place Léopold 1, 7000 Mons', color: '#8B4513' },
+  { code: 'FCR', name: 'Charleroi-Central', region: 'Wallonie', timezone: 'Europe/Brussels', contactTS: 'TS Charleroi', phoneTS: '071 224 88 00', emailTS: 'ts.charleroi@sncb.be', address: 'Bd Janson 1, 6000 Charleroi', color: '#228B22' },
+  { code: 'FOT', name: 'Ostende', region: 'Flandre', timezone: 'Europe/Brussels', contactTS: 'TS Ostende', phoneTS: '059 224 88 00', emailTS: 'ts.ostende@sncb.be', address: 'Stationplein 1, 8400 Oostende', color: '#1E90FF' },
+  { code: 'FGSP', name: 'Gand-Saint-Pierre', region: 'Flandre', timezone: 'Europe/Brussels', contactTS: 'TS Gand', phoneTS: '09 224 88 00', emailTS: 'ts.gent@sncb.be', address: 'Sint-Pietersplein 1, 9000 Gent', color: '#8A2BE2' },
+  { code: 'FAN', name: 'Anvers-Central', region: 'Flandre', timezone: 'Europe/Brussels', contactTS: 'TS Anvers', phoneTS: '03 224 88 00', emailTS: 'ts.antwerpen@sncb.be', address: 'Koningin Astridplein 27, 2018 Antwerpen', color: '#FFD700' },
+];
 
-type AppAction =
-  | { type: 'SET_USER'; payload: UserProfile | null }
-  | { type: 'SET_USER_LOADING'; payload: boolean }
-  | { type: 'UPDATE_USER'; payload: Partial<UserProfile> }
-  | { type: 'MARK_USER_SYNCED' }
-  | { type: 'SET_PREFERENCES'; payload: UserPreference[] }
-  | { type: 'UPDATE_PREFERENCE'; payload: { id: string; updates: Partial<UserPreference> } }
-  | { type: 'ADD_PREFERENCE'; payload: UserPreference }
-  | { type: 'REMOVE_PREFERENCE'; payload: string }
-  | { type: 'INCREMENT_PREFERENCES_VERSION' }
-  | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_SUCCESS'; payload: string | null }
-  | { type: 'SET_WARNING'; payload: string | null }
-  | { type: 'SET_SAVING'; payload: boolean }
-  | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'CLEAR_MESSAGES' }
-  | { type: 'SET_RGPD_CONSENT'; payload: boolean }
-  | { type: 'ADD_TECH_LOG'; payload: Omit<TechLog, 'id' | 'timestamp'> }
-  | { type: 'CLEAR_LOGS' }
-  | { type: 'MARK_UNSYNCED_CHANGES'; payload: boolean }
-  | { type: 'MARK_DUTIES_UPDATED' }
-  | { type: 'RESET_APP' };
+export const DEPOT_MAP = new Map(DEPOTS.map(d => [d.code, d]));
 
-interface AppContextType extends AppState {
-  isSaving: boolean;
-  login: (user: UserProfile) => Promise<void>;
-  logout: () => Promise<void>;
-  loadUserProfile: (id: string, authUser?: any) => Promise<void>;
-  updateUserProfile: (updates: Partial<UserProfile>) => void;
-  completeOnboarding: (updates: Partial<UserProfile>) => Promise<void>;
-  setPreferences: (prefs: UserPreference[]) => void;
-  updatePreferences: (preferences: UserPreference[]) => void;
-  updatePreference: (id: string, updates: Partial<UserPreference>) => void;
-  addPreference: (preference: UserPreference) => void;
-  removePreference: (id: string) => void;
-  publishDutyForSwap: (duty: Duty, isUrgent?: boolean) => Promise<void>;
-  setError: (message: string | null) => void;
-  setSuccess: (message: string | null) => void;
-  setSuccessMessage: (msg: string | null) => void;
-  setWarning: (message: string | null) => void;
-  clearMessages: () => void;
-  addTechLog: (message: string, level?: TechLog['level'], source?: string, metadata?: Record<string, any>) => void;
-  clearTechLogs: () => void;
-  validateDepot: (depotCode: string) => boolean;
-  validateRGPS: (duty: Duty, otherDuties?: Duty[]) => { valid: boolean; violations: string[] };
-  getComputedPreferences: () => { likes: UserPreference[]; dislikes: UserPreference[]; neutrals: UserPreference[] };
-  isOnline: boolean;
-  isInitialized: boolean;
-  hasPendingChanges: boolean;
-}
+// ============== STATIONS ==============
+export const STATIONS: Station[] = [
+  { code: 'BRU', name: 'Bruxelles-Central', type: 'main', region: 'Bruxelles' },
+  { code: 'BMZ', name: 'Bruxelles-Midi', type: 'main', region: 'Bruxelles' },
+  { code: 'BN', name: 'Bruxelles-Nord', type: 'main', region: 'Bruxelles' },
+  { code: 'LG', name: 'Liège-Guillemins', type: 'main', region: 'Wallonie' },
+  { code: 'NMR', name: 'Namur', type: 'main', region: 'Wallonie' },
+  { code: 'MNC', name: 'Mons', type: 'main', region: 'Wallonie' },
+  { code: 'CRL', name: 'Charleroi-Central', type: 'main', region: 'Wallonie' },
+  { code: 'OST', name: 'Ostende', type: 'main', region: 'Flandre' },
+  { code: 'GSP', name: 'Gand-Saint-Pierre', type: 'main', region: 'Flandre' },
+  { code: 'ANT', name: 'Anvers-Central', type: 'main', region: 'Flandre' },
+  { code: 'AL', name: 'Alost', type: 'secondary', region: 'Flandre' },
+  { code: 'AR', name: 'Arlon', type: 'secondary', region: 'Wallonie' },
+  { code: 'BR', name: 'Bruges', type: 'secondary', region: 'Flandre' },
+  { code: 'CR', name: 'Courtrai', type: 'secondary', region: 'Flandre' },
+  { code: 'HS', name: 'Hasselt', type: 'secondary', region: 'Flandre' },
+  { code: 'LW', name: 'Louvière', type: 'secondary', region: 'Wallonie' },
+  { code: 'ML', name: 'Malines', type: 'secondary', region: 'Flandre' },
+  { code: 'TL', name: 'Tamines', type: 'secondary', region: 'Wallonie' },
+  { code: 'TR', name: 'Tournai', type: 'secondary', region: 'Wallonie' },
+  { code: 'VIL', name: 'Vilvorde', type: 'secondary', region: 'Flandre' },
+];
 
-const initialState: AppState = {
-  user: null,
-  isLoadingUser: false,
-  lastUserSync: null,
-  preferences: INITIAL_PREFERENCES,
-  preferencesVersion: 1,
-  ui: {
-    error: null,
-    success: null,
-    warning: null,
-    isSaving: false,
-    isLoading: false,
-  },
-  rgpdConsent: false,
-  techLogs: [],
-  maxLogs: 100,
-  lastDutiesUpdate: null,
-  hasUnsyncedChanges: false,
+export const STATION_MAP = new Map(STATIONS.map(s => [s.code, s]));
+
+// ============== PREFERENCES ==============
+export const PREFERENCE_LEVELS: { value: PreferenceLevel; label: string; color: string; description: string }[] = [
+  { value: 'required', label: 'Indispensable', color: '#10B981', description: 'Doit absolument être inclus' },
+  { value: 'high', label: 'Très important', color: '#3B82F6', description: 'Fortement souhaité' },
+  { value: 'medium', label: 'Important', color: '#F59E0B', description: 'Souhaitable mais pas obligatoire' },
+  { value: 'low', label: 'Optionnel', color: '#6B7280', description: 'Bonus si possible' },
+  { value: 'avoid', label: 'À éviter', color: '#EF4444', description: 'À éviter si possible' },
+  { value: 'never', label: 'Jamais', color: '#7F1D1D', description: 'Inacceptable' },
+];
+
+export const INITIAL_PREFERENCES: UserPreference[] = [
+  { id: uuidv4(), type: 'time', name: 'Début de service', value: '07:00', level: 'medium', description: 'Heure de début préférée' },
+  { id: uuidv4(), type: 'time', name: 'Fin de service', value: '15:00', level: 'medium', description: 'Heure de fin préférée' },
+  { id: uuidv4(), type: 'day', name: 'Week-end', value: 'avoid', level: 'medium', description: 'Préférence pour les services du week-end' },
+  { id: uuidv4(), type: 'station', name: 'Gares favorites', value: ['BRU', 'BMZ', 'LG'], level: 'medium', description: 'Gares où vous préférez travailler' },
+  { id: uuidv4(), type: 'train', name: 'Types de train', value: ['IC', 'L'], level: 'low', description: 'Types de train préférés' }
+];
+
+// ============== APPLICATION CONFIG ==============
+export const APP_CONFIG = {
+  AUTO_SAVE_DELAY_MS: 2000,
+  POLLING_INTERVAL_MS: 15000,
+  MAX_UPLOAD_SIZE: 10 * 1024 * 1024,
+  SESSION_TIMEOUT_MINUTES: 60,
+  MAX_NOTIFICATIONS: 50,
+  API_TIMEOUT_MS: 10000,
+  RETRY_ATTEMPTS: 3,
+  RETRY_DELAY_MS: 1000,
+} as const;
+
+// ============== RULES & REGULATIONS ==============
+export const RGPS_RULES = {
+  MAX_SERVICE_DURATION_HOURS: 9,
+  MAX_WEEKLY_HOURS: 48,
+  MAX_NIGHT_SHIFTS_PER_WEEK: 3,
+  MIN_REST_BETWEEN_SHIFTS_HOURS: 11,
+  MIN_WEEKLY_REST_HOURS: 35,
+  MAX_CONSECUTIVE_WORKING_DAYS: 6,
+} as const;
+
+export const SNCB_RULES = {
+  MAX_SWAP_DISTANCE_KM: 100,
+  MIN_NOTICE_HOURS: 24,
+  MAX_SWAPS_PER_MONTH: 10,
+  APPROVAL_REQUIRED: true,
+  MAX_PENDING_REQUESTS: 5,
+  TRADE_WINDOW_HOURS: 72,
+} as const;
+
+// ============== SERVICE CODES ==============
+export const SERVICE_CODES = {
+  IC: 'InterCity',
+  L: 'L (Omnibus)',
+  P: 'Train de pointe',
+  S: 'Train spécial',
+  T: 'Train de travaux',
+  E: 'Train d\'entretien',
+  X: 'Service exceptionnel',
+} as const;
+
+// ============== CONSTRAINT TYPES ==============
+export const CONSTRAINT_TYPES = [
+  { value: 'medical', label: 'Médical', icon: '🏥' },
+  { value: 'family', label: 'Famille', icon: '👨‍👩‍👧‍👦' },
+  { value: 'training', label: 'Formation', icon: '🎓' },
+  { value: 'personal', label: 'Personnel', icon: '👤' },
+  { value: 'administrative', label: 'Administratif', icon: '📋' },
+  { value: 'other', label: 'Autre', icon: '📝' },
+];
+
+// ============== STATUS ENUMS ==============
+export const SWAP_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  CANCELLED: 'cancelled',
+  COMPLETED: 'completed',
+  EXPIRED: 'expired',
+} as const;
+
+export const NOTIFICATION_TYPES = {
+  SWAP_REQUEST: 'swap_request',
+  SWAP_ACCEPTED: 'swap_accepted',
+  SWAP_REJECTED: 'swap_rejected',
+  SWAP_REMINDER: 'swap_reminder',
+  SYSTEM_ALERT: 'system_alert',
+  ANNOUNCEMENT: 'announcement',
+} as const;
+
+// ============== ERROR MESSAGES ==============
+export const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Erreur de connexion. Vérifiez votre accès internet.',
+  API_ERROR: 'Service temporairement indisponible. Réessayez dans quelques instants.',
+  AUTH_ERROR: 'Session expirée. Veuillez vous reconnecter.',
+  VALIDATION_ERROR: 'Veuillez vérifier les informations saisies.',
+  PERMISSION_ERROR: 'Vous n\'avez pas les permissions nécessaires pour cette action.',
+  NOT_FOUND: 'Ressource non trouvée.',
+  RATE_LIMIT: 'Trop de tentatives. Veuillez réessayer plus tard.',
+  UNKNOWN: 'Une erreur inattendue s\'est produite.',
+} as const;
+
+// ============== API ENDPOINTS ==============
+export const API_ENDPOINTS = {
+  USERS: '/api/users',
+  DUTIES: '/api/duties',
+  SWAPS: '/api/swaps',
+  PREFERENCES: '/api/preferences',
+  NOTIFICATIONS: '/api/notifications',
+  STATIONS: '/api/stations',
+  VISION: '/api/vision',
+  ERROR_LOG: '/api/error-log',
+  HEALTH: '/api/health',
+} as const;
+
+// ============== VALIDATION RULES ==============
+export const VALIDATION_RULES = {
+  EMPLOYEE_ID: /^[0-9]{6,8}$/,
+  EMAIL: /^[^\s@]+@sncb\.be$/,
+  PHONE: /^[0-9\s+\-()]{8,15}$/,
+  TIME: /^([01][0-9]|2[0-3])[0-5][0-9]$/,
+  DATE: /^\d{4}-\d{2}-\d{2}$/,
+  STATION_CODE: /^[A-Z]{2,4}$/,
 };
 
-function appReducer(state: AppState, action: AppAction): AppState {
-  switch (action.type) {
-    case 'SET_USER': return { ...state, user: action.payload, lastUserSync: action.payload ? Date.now() : null };
-    case 'SET_USER_LOADING': return { ...state, isLoadingUser: action.payload };
-    case 'UPDATE_USER': return state.user ? { ...state, user: { ...state.user, ...action.payload }, hasUnsyncedChanges: true } : state;
-    case 'MARK_USER_SYNCED': return { ...state, hasUnsyncedChanges: false, lastUserSync: Date.now() };
-    case 'SET_PREFERENCES': return { ...state, preferences: action.payload, hasUnsyncedChanges: true };
-    case 'UPDATE_PREFERENCE': return { ...state, preferences: state.preferences.map(pref => pref.id === action.payload.id ? { ...pref, ...action.payload.updates } : pref), hasUnsyncedChanges: true };
-    case 'ADD_PREFERENCE': return { ...state, preferences: [...state.preferences, action.payload], hasUnsyncedChanges: true };
-    case 'REMOVE_PREFERENCE': return { ...state, preferences: state.preferences.filter(pref => pref.id !== action.payload), hasUnsyncedChanges: true };
-    case 'INCREMENT_PREFERENCES_VERSION': return { ...state, preferencesVersion: state.preferencesVersion + 1 };
-    case 'SET_ERROR': return { ...state, ui: { ...state.ui, error: action.payload, success: null } };
-    case 'SET_SUCCESS': return { ...state, ui: { ...state.ui, success: action.payload, error: null } };
-    case 'SET_WARNING': return { ...state, ui: { ...state.ui, warning: action.payload } };
-    case 'SET_SAVING': return { ...state, ui: { ...state.ui, isSaving: action.payload } };
-    case 'SET_LOADING': return { ...state, ui: { ...state.ui, isLoading: action.payload } };
-    case 'CLEAR_MESSAGES': return { ...state, ui: { ...state.ui, error: null, success: null, warning: null } };
-    case 'SET_RGPD_CONSENT': return { ...state, rgpdConsent: action.payload, hasUnsyncedChanges: true };
-    case 'ADD_TECH_LOG': return { ...state, techLogs: [{ id: `log_${Date.now()}`, timestamp: new Date().toISOString(), ...action.payload }, ...state.techLogs].slice(0, state.maxLogs) };
-    case 'CLEAR_LOGS': return { ...state, techLogs: [] };
-    case 'MARK_UNSYNCED_CHANGES': return { ...state, hasUnsyncedChanges: action.payload };
-    case 'MARK_DUTIES_UPDATED': return { ...state, lastDutiesUpdate: Date.now() };
-    case 'RESET_APP': return { ...initialState, techLogs: state.techLogs };
-    default: return state;
-  }
+// ============== THEME & COLORS ==============
+export const THEME_COLORS = {
+  primary: '#003399',
+  secondary: '#0055CC',
+  accent: '#FFD700',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#3B82F6',
+  neutral: '#6B7280',
+  background: '#F3F4F6',
+  surface: '#FFFFFF',
+  text: '#1F2937',
+  textSecondary: '#6B7280',
+} as const;
+
+// ============== ICONS ==============
+export const TYPE_ICONS = {
+  duty: '📋',
+  swap: '🔄',
+  user: '👤',
+  station: '🏢',
+  train: '🚂',
+  time: '⏰',
+  preference: '⭐',
+  notification: '🔔',
+  document: '📄',
+  settings: '⚙️',
+  help: '❓',
+  logout: '🚪',
+} as const;
+
+// ============== GOOGLE API CONFIG ==============
+export const GOOGLE_API_CONFIG = {
+  VISION_API_KEY_REQUIRED: true,
+  VISION_API_ENDPOINT: 'https://vision.googleapis.com/v1/images:annotate',
+  MAX_IMAGE_SIZE_MB: 20,
+  SUPPORTED_FORMATS: ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/tiff', 'application/pdf'],
+  DEFAULT_FEATURE_TYPE: 'TEXT_DETECTION',
+  TIMEOUT_MS: 30000,
+} as const;
+
+// ============== UTILITY FUNCTIONS ==============
+export function getStationName(code: string): string {
+  return STATION_MAP.get(code)?.name || code;
 }
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export function getDepotName(code: string): string {
+  return DEPOT_MAP.get(code)?.name || code;
+}
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+export function getPreferenceLevelColor(level: PreferenceLevel): string {
+  return PREFERENCE_LEVELS.find(p => p.value === level)?.color || '#6B7280';
+}
 
-  const loadUserProfile = useCallback(async (userId: string, authUser?: any) => {
-    dispatch({ type: 'SET_USER_LOADING', payload: true });
-    try {
-      const profile = await profileService.getOrCreateProfile({ id: userId, email: authUser?.email, metadata: authUser?.user_metadata });
-      
-      const mappedProfile: UserProfile = {
-        id: profile.id,
-        sncbId: profile.sncb_id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        email: profile.email,
-        depot: profile.depot,
-        onboardingCompleted: profile.onboarding_completed,
-        role: profile.role,
-        preferences: profile.preferences || [],
-        rgpdConsent: profile.rgpd_consent
-      };
+export function getPreferenceLevelLabel(level: PreferenceLevel): string {
+  return PREFERENCE_LEVELS.find(p => p.value === level)?.label || 'Non défini';
+}
 
-      dispatch({ type: 'SET_USER', payload: mappedProfile });
-      if (mappedProfile.preferences) dispatch({ type: 'SET_PREFERENCES', payload: mappedProfile.preferences });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: formatError(error) });
-    } finally {
-      dispatch({ type: 'SET_USER_LOADING', payload: false });
-    }
-  }, []);
+export function formatServiceTime(time: string): string {
+  if (!time || time.length !== 4) return '--:--';
+  return `${time.slice(0, 2)}:${time.slice(2)}`;
+}
 
-  const completeOnboarding = useCallback(async (updates: any) => {
-    if (!state.user) return;
-    dispatch({ type: 'SET_SAVING', payload: true });
-    dispatch({ type: 'CLEAR_MESSAGES' });
+export function calculateServiceDuration(start: string, end: string): number {
+  const startHour = parseInt(start.slice(0, 2));
+  const startMinute = parseInt(start.slice(2));
+  const endHour = parseInt(end.slice(0, 2));
+  const endMinute = parseInt(end.slice(2));
+  
+  const startTotal = startHour * 60 + startMinute;
+  const endTotal = endHour * 60 + endMinute;
+  
+  let duration = endTotal - startTotal;
+  if (duration < 0) duration += 24 * 60;
     
-    try {
-      // 1. Mise à jour en base de données
-      await profileService.updateProfile(state.user.id, { 
-        ...updates, 
-        onboarding_completed: true
-      });
-      
-      // 2. Mise à jour immédiate de l'état local (CAMEL CASE pour le UI)
-      dispatch({ type: 'UPDATE_USER', payload: {
-        firstName: updates.first_name,
-        lastName: updates.last_name,
-        depot: updates.depot,
-        rgpdConsent: updates.rgpd_consent,
-        onboardingCompleted: true
-      }});
-      
-      // 3. Re-téléchargement facultatif pour synchronisation
-      await loadUserProfile(state.user.id);
-      dispatch({ type: 'SET_SUCCESS', payload: 'Profil agent validé.' });
-    } catch (error) { 
-      dispatch({ type: 'SET_ERROR', payload: formatError(error) }); 
-    }
-    finally { dispatch({ type: 'SET_SAVING', payload: false }); }
-  }, [state.user, loadUserProfile]);
+  return Math.round(duration / 60 * 10) / 10;
+}
 
-  const validateRGPS = useCallback((duty: Duty, otherDuties: Duty[] = []): { valid: boolean; violations: string[] } => {
-    const violations: string[] = [];
-    if ((duty.duration || 0) > RGPS_RULES.MAX_SERVICE_DURATION_HOURS) {
-      violations.push(`Durée excessive (${duty.duration}h)`);
-    }
-    return { valid: violations.length === 0, violations };
-  }, []);
+export function isValidDuty(duty: Partial<Duty>): boolean {
+  return !!(
+    duty.id &&
+    duty.date &&
+    duty.startTime &&
+    duty.endTime &&
+    duty.startStation &&
+    duty.endStation &&
+    duty.type
+  );
+}
 
-  const login = useCallback(async (user: UserProfile) => {
-    dispatch({ type: 'SET_USER', payload: user });
-  }, []);
+export function generateDutyId(): string {
+  return `DUTY_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
 
-  const logout = useCallback(async () => { dispatch({ type: 'RESET_APP' }); }, []);
+export function generateSwapId(): string {
+  return `SWAP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
 
-  const contextValue: AppContextType = useMemo(() => ({
-    ...state,
-    isSaving: state.ui.isSaving,
-    login,
-    logout,
-    loadUserProfile,
-    updateUserProfile: (updates) => dispatch({ type: 'UPDATE_USER', payload: updates }),
-    completeOnboarding,
-    setPreferences: (p) => dispatch({ type: 'SET_PREFERENCES', payload: p }),
-    updatePreferences: (p) => dispatch({ type: 'SET_PREFERENCES', payload: p }),
-    updatePreference: (id, updates) => dispatch({ type: 'UPDATE_PREFERENCE', payload: { id, updates } }),
-    addPreference: (p) => dispatch({ type: 'ADD_PREFERENCE', payload: p }),
-    removePreference: (id) => dispatch({ type: 'REMOVE_PREFERENCE', payload: id }),
-    publishDutyForSwap: async (duty, isUrgent) => { 
-        if (!state.user) return;
-        await swapService.publishForSwap(state.user, duty, isUrgent); 
-    },
-    setError: (m) => dispatch({ type: 'SET_ERROR', payload: m }),
-    setSuccess: (m) => dispatch({ type: 'SET_SUCCESS', payload: m }),
-    setSuccessMessage: (m) => dispatch({ type: 'SET_SUCCESS', payload: m }),
-    setWarning: (m) => dispatch({ type: 'SET_WARNING', payload: m }),
-    clearMessages: () => dispatch({ type: 'CLEAR_MESSAGES' }),
-    addTechLog: (m, l = 'info') => dispatch({ type: 'ADD_TECH_LOG', payload: { message: m, level: l } }),
-    clearTechLogs: () => dispatch({ type: 'CLEAR_LOGS' }),
-    validateDepot: (c) => DEPOT_MAP.has(c),
-    validateRGPS,
-    getComputedPreferences: () => ({ 
-        likes: state.preferences.filter(p => p.level === 'LIKE'), 
-        dislikes: state.preferences.filter(p => p.level === 'DISLIKE'), 
-        neutrals: state.preferences.filter(p => p.level === 'NEUTRAL') 
-    }),
-    isOnline: navigator.onLine,
-    isInitialized: !!state.user,
-    hasPendingChanges: state.hasUnsyncedChanges,
-  }), [state, login, logout, loadUserProfile, completeOnboarding, validateRGPS]);
+export function checkGoogleVisionApiKey(): boolean {
+  return !!process.env.GOOGLE_API_KEY || !!process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+}
 
-  return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
-};
+export function getGoogleApiKey(): string | undefined {
+  return process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
+}
 
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error('useApp must be used within AppProvider');
-  return context;
+// ============== DEFAULT EXPORT ==============
+export default {
+  APP_VERSION,
+  LEGAL_DISCLAIMER,
+  DEPOT_ROLES,
+  DEPOTS,
+  DEPOT_MAP,
+  STATIONS,
+  STATION_MAP,
+  PREFERENCE_LEVELS,
+  INITIAL_PREFERENCES,
+  APP_CONFIG,
+  RGPS_RULES,
+  SNCB_RULES,
+  SERVICE_CODES,
+  CONSTRAINT_TYPES,
+  SWAP_STATUS,
+  NOTIFICATION_TYPES,
+  ERROR_MESSAGES,
+  API_ENDPOINTS,
+  VALIDATION_RULES,
+  THEME_COLORS,
+  TYPE_ICONS,
+  GOOGLE_API_CONFIG,
+  
+  // Utility Functions
+  getStationName,
+  getDepotName,
+  getPreferenceLevelColor,
+  getPreferenceLevelLabel,
+  formatServiceTime,
+  calculateServiceDuration,
+  isValidDuty,
+  generateDutyId,
+  generateSwapId,
+  checkGoogleVisionApiKey,
+  getGoogleApiKey,
 };
