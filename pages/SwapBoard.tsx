@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserProfile, UserPreference, SwapOffer, Duty } from '../types';
 import { swapService, formatError } from '../lib/api';
@@ -136,19 +135,19 @@ const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
                 <div key={swap.id} className="glass-card bg-white p-8 border-gray-100 group shadow-xl relative overflow-hidden">
                   <div className="flex justify-between items-start mb-8">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-sncb-blue text-white rounded-xl flex items-center justify-center font-black italic">{swap.user.firstName?.[0]}</div>
+                      <div className="w-12 h-12 bg-sncb-blue text-white rounded-xl flex items-center justify-center font-black italic">{String(swap.user.firstName?.[0] || 'A')}</div>
                       <div>
-                        <h4 className="font-black text-slate-900 leading-tight">{swap.user.firstName} {swap.user.lastName}</h4>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">Matricule {swap.user.sncbId}</p>
+                        <h4 className="font-black text-slate-900 leading-tight">{String(swap.user.firstName)} {String(swap.user.lastName)}</h4>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">Matricule {String(swap.user.sncbId)}</p>
                       </div>
                     </div>
-                    <div className="text-[10px] font-black px-3 py-1 bg-blue-50 text-sncb-blue rounded-full">{swap.matchScore}% MATCH</div>
+                    <div className="text-[10px] font-black px-3 py-1 bg-blue-50 text-sncb-blue rounded-full">{Number(swap.matchScore || 0)}% MATCH</div>
                   </div>
 
                   <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 mb-6">
                     <div className="flex justify-between items-center mb-4">
-                      <span className="text-2xl font-black text-slate-900">{swap.offeredDuty.start_time} <ArrowRight className="inline mx-2 text-slate-300" size={18} /> {swap.offeredDuty.end_time}</span>
-                      <span className="text-[9px] font-black bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-100">{swap.offeredDuty.code}</span>
+                      <span className="text-2xl font-black text-slate-900">{String(swap.offeredDuty.start_time)} <ArrowRight className="inline mx-2 text-slate-300" size={18} /> {String(swap.offeredDuty.end_time)}</span>
+                      <span className="text-[9px] font-black bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-100">{String(swap.offeredDuty.code)}</span>
                     </div>
                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                       {new Date(swap.offeredDuty.date).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -181,7 +180,7 @@ const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
               <div key={offer.id} className="glass-card bg-white overflow-hidden border-slate-100 shadow-xl">
                 <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30">
                   <div className="flex items-center gap-4">
-                    <span className="text-lg font-black text-sncb-blue italic">Tour {offer.duty_data.code}</span>
+                    <span className="text-lg font-black text-sncb-blue italic">Tour {String(offer.duty_data?.code)}</span>
                     <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${offer.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                       {offer.status === 'active' ? 'En ligne' : 'En attente TS'}
                     </span>
@@ -196,9 +195,9 @@ const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
                        offer.swap_requests.map((req: any) => (
                          <div key={req.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <div className="flex items-center gap-4">
-                               <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center font-bold text-slate-400">{req.requester_name[0]}</div>
+                               <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center font-bold text-slate-400">{String(req.requester_name?.[0] || 'A')}</div>
                                <div>
-                                 <p className="text-xs font-black text-slate-800">{req.requester_name}</p>
+                                 <p className="text-xs font-black text-slate-800">{String(req.requester_name)}</p>
                                  <p className="text-[9px] font-bold text-slate-400 uppercase">Postulé le {new Date(req.created_at).toLocaleDateString()}</p>
                                </div>
                             </div>
@@ -233,7 +232,7 @@ const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
         </div>
       )}
 
-      {/* MODALE DE PUBLICATION (Inchangée mais accessible) */}
+      {/* MODALE DE PUBLICATION */}
       {showPublishModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-sncb-blue/60 backdrop-blur-xl" onClick={() => setShowPublishModal(false)}></div>
@@ -251,9 +250,9 @@ const SwapBoard: React.FC<SwapBoardProps> = ({ user, preferences }) => {
                   className="w-full text-left p-6 bg-white border border-slate-100 rounded-3xl hover:border-sncb-blue hover:shadow-xl transition-all flex items-center justify-between group"
                 >
                   <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-slate-50 group-hover:bg-blue-50 rounded-2xl flex items-center justify-center font-black text-sncb-blue italic">{duty.code}</div>
+                    <div className="w-14 h-14 bg-slate-50 group-hover:bg-blue-50 rounded-2xl flex items-center justify-center font-black text-sncb-blue italic">{String(duty.code)}</div>
                     <div>
-                      <p className="text-xl font-black text-slate-900">{duty.start_time} — {duty.end_time}</p>
+                      <p className="text-xl font-black text-slate-900">{String(duty.start_time)} — {String(duty.end_time)}</p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(duty.date).toLocaleDateString('fr-BE', { day: 'numeric', month: 'long' })}</p>
                     </div>
                   </div>

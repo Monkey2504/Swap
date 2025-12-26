@@ -6,34 +6,42 @@ export { preferencesService } from './preferencesService';
 
 /**
  * Transforme n'importe quel type d'erreur en chaîne de caractères lisible.
- * Empêche systématiquement l'affichage de "[object Object]".
+ * Empêche systématiquement l'affichage de "[object Object]" et l'erreur React #31.
  */
 export const formatError = (err: any): string => {
   if (!err) return "Une erreur inconnue est survenue.";
   
   if (typeof err === 'string') return err;
   
-  // Gestion des erreurs d'API Gemini ou Supabase
-  if (err.message && typeof err.message === 'string') {
-    return err.message;
+  // Si c'est déjà un objet Error standard
+  if (err instanceof Error) {
+    return err.message || "Erreur système.";
   }
 
-  // Gestion des objets d'erreur complexes
+  // Gestion des objets d'erreur complexes (Supabase, Gemini, etc.)
   if (typeof err === 'object') {
+    // Vérifier si c'est un élément React par accident ($$typeof)
+    if (err.$$typeof) {
+      return "Erreur d'affichage (objet React détecté).";
+    }
+
     try {
-      // Si c'est une erreur de fetch/réseau
-      if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
-        return "Erreur de connexion au serveur. Vérifiez votre accès internet.";
-      }
-      
-      // Extraction récursive si possible
+      // Priorité aux messages explicites
+      if (err.message && typeof err.message === 'string') return err.message;
       if (err.error && typeof err.error === 'string') return err.error;
+      if (err.error_description && typeof err.error_description === 'string') return err.error_description;
       if (err.details && typeof err.details === 'string') return err.details;
       
+      // Si c'est une erreur de fetch/réseau
+      if (err.name === 'TypeError' && (err.message === 'Failed to fetch' || err.message?.includes('network'))) {
+        return "Erreur de connexion. Vérifiez votre accès internet ou le statut du serveur.";
+      }
+      
+      // En dernier recours, stringify mais vérifier que ce n'est pas un objet vide
       const str = JSON.stringify(err);
-      return str !== '{}' ? str : "Erreur technique non détaillée.";
+      return str !== '{}' ? str : "Erreur technique non spécifiée.";
     } catch (e) {
-      return "Erreur de traitement des données.";
+      return "Erreur de traitement des données (format non reconnu).";
     }
   }
 

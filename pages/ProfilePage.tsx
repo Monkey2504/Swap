@@ -45,7 +45,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       try {
         const base64 = reader.result as string;
         
-        // APPEL DIRECT AU SERVICE IA (Plus fiable que l'API route dans cet environnement)
+        // APPEL DIRECT AU SERVICE IA
         const services = await parseRoster(base64, file.type || 'image/jpeg');
 
         if (!services || services.length === 0) {
@@ -90,16 +90,18 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
     }
   };
 
+  const messageText = String(ui.error || dutiesError || ui.success || "");
+
   return (
     <div className="space-y-8 animate-slide-up pb-32 max-w-5xl mx-auto px-4">
       {/* NOTIFICATIONS */}
-      {(ui.error || ui.success || dutiesError) && (
+      {messageText !== "" && (
         <div className={`p-5 rounded-3xl border flex items-center gap-4 shadow-xl animate-in fade-in slide-in-from-top-4 duration-300 ${
           ui.error || dutiesError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700'
         }`}>
           {ui.error || dutiesError ? <XCircle size={22} /> : <CheckCircle size={22} />}
           <p className="text-[11px] font-black uppercase tracking-tight flex-grow italic">
-            {ui.error || dutiesError || ui.success}
+            {messageText}
           </p>
           <button onClick={clearMessages} className="p-2 hover:bg-black/5 rounded-full transition-colors">
             <X size={18} />
@@ -243,13 +245,13 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
                 >
                   <div className="flex items-center gap-8">
                     <div className="w-16 h-16 bg-white rounded-2xl flex flex-col items-center justify-center font-black text-sncb-blue text-sm shadow-sm italic group-hover:bg-sncb-blue group-hover:text-white transition-all">
-                      {d.code}
+                      {String(d.code)}
                     </div>
                     <div>
                       <div className="flex items-center gap-4">
-                        <p className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter">{d.start_time} — {d.end_time}</p>
+                        <p className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter">{String(d.start_time)} — {String(d.end_time)}</p>
                         <span className="px-4 py-1.5 bg-sncb-blue text-white text-[9px] font-black rounded-xl uppercase italic tracking-tighter shadow-md">
-                          {d.type || 'SNCB'}
+                          {String(d.type || 'SNCB')}
                         </span>
                       </div>
                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">
@@ -298,12 +300,12 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
               >
                 <div className="flex items-center gap-5">
                   <div className="w-16 h-16 bg-slate-50 rounded-2xl flex flex-col items-center justify-center group-hover:bg-blue-50 transition-colors shadow-inner">
-                    <span className="text-xl font-black text-sncb-blue italic leading-none">{duty.code}</span>
+                    <span className="text-xl font-black text-sncb-blue italic leading-none">{String(duty.code)}</span>
                     <span className="text-[9px] font-black text-slate-300 uppercase mt-2 tracking-widest">Tour</span>
                   </div>
                   <div>
                     <p className="text-xl font-black text-slate-800 tracking-tight">
-                      {duty.start_time} <ArrowRight size={16} className="inline mx-2 text-slate-200" /> {duty.end_time}
+                      {String(duty.start_time)} <ArrowRight size={16} className="inline mx-2 text-slate-200" /> {String(duty.end_time)}
                     </p>
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
                       {new Date(duty.date).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' })}
