@@ -5,46 +5,39 @@ export { swapService } from './swapService';
 export { preferencesService } from './preferencesService';
 
 /**
- * Transforme n'importe quel type d'erreur en chaîne de caractères lisible.
- * Empêche systématiquement l'affichage de "[object Object]" et l'erreur React #31.
+ * formatError : Garantit que le retour est TOUJOURS une chaîne de caractères simple.
+ * Empêche le crash React #31 (Objects are not valid as a React child).
  */
 export const formatError = (err: any): string => {
-  if (!err) return "Une erreur inconnue est survenue.";
+  if (err === null || err === undefined) return "Une erreur inconnue est survenue.";
   
+  // Si c'est déjà une string, on la retourne
   if (typeof err === 'string') return err;
   
-  // Si c'est déjà un objet Error standard
-  if (err instanceof Error) {
-    return err.message || "Erreur système.";
-  }
+  // Si c'est un objet Error standard
+  if (err instanceof Error) return err.message || "Erreur système.";
 
-  // Gestion des objets d'erreur complexes (Supabase, Gemini, etc.)
+  // Si c'est un objet complexe
   if (typeof err === 'object') {
-    // Vérifier si c'est un élément React par accident ($$typeof)
-    // Rend l'erreur sécurisée pour l'affichage
-    if (err.$$typeof) {
-      return "Erreur d'affichage (composant React détecté au lieu d'un message).";
-    }
+    // Cas critique : On a reçu un élément React par erreur
+    if (err.$$typeof) return "Erreur technique d'affichage.";
 
     try {
-      // Priorité aux messages explicites
-      if (typeof err.message === 'string') return err.message;
-      if (typeof err.error === 'string') return err.error;
-      if (typeof err.error_description === 'string') return err.error_description;
-      if (typeof err.details === 'string') return err.details;
+      // Priorité aux champs de message connus
+      const msg = err.message || err.error || err.error_description || err.details || err.msg;
+      if (msg && typeof msg === 'string') return msg;
       
-      // Si c'est une erreur de fetch/réseau
-      if (err.name === 'TypeError' && (err.message === 'Failed to fetch' || err.message?.includes('network'))) {
-        return "Erreur de connexion. Vérifiez votre accès internet ou le statut du serveur.";
-      }
-      
-      // En dernier recours, stringify mais vérifier que ce n'est pas un objet vide
-      const str = JSON.stringify(err);
-      return (str && str !== '{}') ? str : "Erreur technique non spécifiée.";
+      // Si c'est une erreur de réseau type fetch
+      if (err.name === 'TypeError') return "Problème de connexion au Cloud SNCB.";
+
+      // Fallback JSON stringify sécurisé
+      const stringified = JSON.stringify(err);
+      return stringified === '{}' ? "Erreur technique non détaillée." : stringified;
     } catch (e) {
-      return "Erreur de traitement des données (format non reconnu).";
+      return "Erreur de format de données.";
     }
   }
 
+  // Fallback ultime
   return String(err);
 };
