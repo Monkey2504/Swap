@@ -45,8 +45,13 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       try {
         const base64 = reader.result as string;
         
-        // APPEL AU PROXY SÉCURISÉ (API Serverless)
-        const response = await fetch('/api/parse-roster', {
+        // DÉTERMINATION DE L'URL ABSOLUE (Évite les 404 de routage relatif)
+        const baseUrl = window.location.origin;
+        const API_URL = `${baseUrl}/api/parse-roster`;
+
+        console.log(`[ProfilePage] Envoi du Roster vers: ${API_URL}`);
+
+        const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -58,14 +63,14 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         // *** BLOC DE VÉRIFICATION ROBUSTE ***
         if (!response.ok) {
           const errorText = await response.text();
-          console.error("Erreur HTTP reçue. Corps de la réponse (non-JSON) :", errorText);
+          console.error(`[ProfilePage] Erreur HTTP ${response.status}. Corps:`, errorText);
           
           let errorMessage = `Erreur du serveur (Statut ${response.status}).`;
           try {
             const errorJson = JSON.parse(errorText);
             errorMessage = errorJson.error || errorJson.details || errorMessage;
           } catch (e) {
-            // Pas de JSON dans l'erreur, on garde le message brut ou générique
+            // Pas de JSON dans l'erreur, on garde le message brut
           }
           throw new Error(errorMessage);
         }
@@ -79,6 +84,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         setPreviewDuties(result.services);
         setSuccessMessage(`${result.services.length} prestations identifiées par l'IA.`);
       } catch (err: any) {
+        console.error("[ProfilePage] Capture d'erreur:", err);
         setError(formatError(err));
       } finally {
         setIsUploading(false);
