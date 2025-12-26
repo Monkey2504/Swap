@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Duty, UserPreference, SwapOffer } from "../types";
 
@@ -35,9 +34,9 @@ const ROSTER_SCHEMA = {
 };
 
 /**
- * Analyse du document Roster côté serveur pour protéger la clé API.
+ * Analyse du document Roster (Utilisé directement côté client pour éviter les problèmes de routes API)
  */
-export async function parseRosterOnServer(base64Data: string, mimeType: string): Promise<Duty[]> {
+export async function parseRoster(base64Data: string, mimeType: string): Promise<Duty[]> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const base64Content = base64Data.includes('base64,') ? base64Data.split(',')[1] : base64Data;
 
@@ -57,12 +56,14 @@ export async function parseRosterOnServer(base64Data: string, mimeType: string):
       }
     });
 
-    if (!response.text) throw new Error("L'IA n'a pas renvoyé de données.");
-    const data = JSON.parse(response.text);
+    const text = response.text;
+    if (!text) throw new Error("L'IA n'a pas pu extraire de texte du document.");
+    
+    const data = JSON.parse(text);
     return (data.services || []) as Duty[];
   } catch (error: any) {
     console.error("[geminiService] Extraction Error:", error);
-    throw new Error(error.message || "Erreur de traitement IA");
+    throw new Error(error.message || "Erreur de traitement IA lors de la lecture du document.");
   }
 }
 

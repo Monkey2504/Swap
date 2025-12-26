@@ -1,6 +1,7 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { parseRosterOnServer } from "../../services/geminiService";
+// Fix: Corrected import to use 'parseRoster' as 'parseRosterOnServer' is not exported
+import { parseRoster } from "../../services/geminiService";
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,7 +26,8 @@ export default async function handler(
 
   try {
     // Appel au service IA côté serveur
-    const services = await parseRosterOnServer(image, mimeType || 'image/jpeg');
+    // Fix: Updated function call to 'parseRoster' which is the correct exported member
+    const services = await parseRoster(image, mimeType || 'image/jpeg');
 
     return res.status(200).json({ 
       success: true, 
