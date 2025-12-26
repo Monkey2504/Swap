@@ -2,18 +2,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useDuties } from '../hooks/useDuties';
-import { parseRosterDocument } from '../services/geminiService';
 import { Duty } from '../types';
 import { formatError } from '../lib/api';
 import { DEPOTS } from '../constants';
-import { Upload, Trash2, Loader2, FileText, CheckCircle, AlertCircle, XCircle, Info, Lock } from 'lucide-react';
+import { 
+  Trash2, Loader2, CheckCircle, XCircle, Scan, 
+  ArrowRight, Table, Save, X, Info, FileSearch, 
+  Sparkles, FileText, AlertCircle, Train 
+} from 'lucide-react';
 
 const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading: boolean }> = ({ onNext, duties, dutiesLoading }) => {
   const { user, completeOnboarding, setError, setSuccessMessage, ui, clearMessages, isSaving } = useApp();
-  const { removeDuty, addDuties, refresh, error: dutiesError } = useDuties(user?.id);
+  const { removeDuty, addDuties, error: dutiesError } = useDuties(user?.id);
   
   const [isUploading, setIsUploading] = useState(false);
-  const [rgpdAccepted, setRgpdAccepted] = useState(false);
+  const [previewDuties, setPreviewDuties] = useState<Duty[] | null>(null);
   
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
@@ -24,38 +27,10 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       setEditFirstName(user.firstName || '');
       setEditLastName(user.lastName || '');
       setEditDepot(user.depot || '');
-      setRgpdAccepted(user.rgpdConsent || false);
     }
   }, [user]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const isProfileComplete = editFirstName.trim() !== '' && 
-                            editLastName.trim() !== '' && 
-                            editDepot !== '' && 
-                            rgpdAccepted;
-
-  const handleActivateAccount = async () => {
-    if (!isProfileComplete || isSaving) return;
-    clearMessages();
-    
-    try {
-      await completeOnboarding({
-        first_name: editFirstName.trim(),
-        last_name: editLastName.trim(),
-        depot: editDepot,
-        rgpd_consent: rgpdAccepted
-      } as any);
-    } catch (err) {
-      setError(formatError(err));
-    }
-  };
-
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -63,31 +38,36 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
 
     setIsUploading(true);
     clearMessages();
+    setPreviewDuties(null);
 
     const reader = new FileReader();
     reader.onload = async () => {
       try {
         const base64 = reader.result as string;
-        const parsedServices = await parseRosterDocument(base64, file.type);
         
-        if (!parsedServices || parsedServices.length === 0) {
-          throw new Error("L'IA n'a détecté aucune prestation. Vérifiez le document.");
+        // APPEL AU PROXY SÉCURISÉ
+        const response = await fetch('/api/parse-roster', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            image: base64, 
+            mimeType: file.type 
+          })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || result.details || "Échec de l'analyse.");
         }
-
-        // Préparation du Bulk Insert
-        const dutiesToCreate = parsedServices.map(s => ({
-          code: s.code,
-          date: s.date,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          type: s.type || 'IC',
-          destinations: s.destinations || [],
-          user_id: user?.id
-        }));
-
-        await addDuties(dutiesToCreate as any);
-        setSuccessMessage(`${parsedServices.length} prestations importées.`);
-      } catch (err) {
+        
+        if (!result.services || result.services.length === 0) {
+          throw new Error("Aucun service n'a pu être extrait. Vérifiez la qualité du document.");
+        }
+        
+        setPreviewDuties(result.services);
+        setSuccessMessage(`${result.services.length} services identifiés. Veuillez vérifier avant l'import.`);
+      } catch (err: any) {
         setError(formatError(err));
       } finally {
         setIsUploading(false);
@@ -97,172 +77,290 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
     reader.readAsDataURL(file);
   };
 
+  const removeFromPreview = (index: number) => {
+    if (!previewDuties) return;
+    const next = [...previewDuties];
+    next.splice(index, 1);
+    setPreviewDuties(next.length > 0 ? next : null);
+  };
+
+  const confirmImport = async () => {
+    if (!previewDuties || !user) return;
+    setIsUploading(true);
+    try {
+      const dutiesToCreate = previewDuties.map(s => ({ 
+        ...s, 
+        user_id: user.id 
+      }));
+      await addDuties(dutiesToCreate as any);
+      setSuccessMessage("Planning SNCB importé avec succès !");
+      setPreviewDuties(null);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
-    <div className="space-y-8 animate-slide-up pb-20 max-w-4xl mx-auto px-4">
-      {/* ZONE DE NOTIFICATION */}
+    <div className="space-y-8 animate-slide-up pb-32 max-w-5xl mx-auto px-4">
+      {/* ALERTS ET FEEDBACK */}
       {(ui.error || ui.success || dutiesError) && (
-        <div className={`p-4 rounded-xl border flex items-center gap-3 animate-slide-up shadow-sm ${
-          ui.error || dutiesError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+        <div className={`p-5 rounded-3xl border flex items-center gap-4 shadow-xl animate-in slide-in-from-top-4 duration-300 ${
+          ui.error || dutiesError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700'
         }`}>
-          {ui.error || dutiesError ? <XCircle size={18} /> : <CheckCircle size={18} />}
-          <p className="text-[11px] font-bold uppercase tracking-tight flex-grow">
+          {ui.error || dutiesError ? <XCircle size={22} /> : <CheckCircle size={22} />}
+          <p className="text-[11px] font-black uppercase tracking-tight flex-grow italic">
             {ui.error || dutiesError || ui.success}
           </p>
-          <button onClick={clearMessages} className="p-1 hover:bg-black/5 rounded-full transition-colors">
-            <XCircle size={14} className="opacity-40" />
+          <button onClick={clearMessages} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+            <X size={18} />
           </button>
         </div>
       )}
 
-      <section className="glass-card p-6 md:p-8 bg-white shadow-xl rounded-3xl border border-gray-100">
-        <div className="flex items-center gap-3 mb-8">
-           <div className="w-10 h-10 bg-sncb-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-sncb-blue/20">
-             <CheckCircle size={20} />
+      {/* CARTE D'IDENTITÉ AGENT */}
+      <section className="glass-card p-8 md:p-12 bg-white shadow-2xl rounded-[40px] border-slate-50 relative overflow-hidden transition-all">
+        <div className="absolute top-0 right-0 p-10 opacity-5">
+          <Train size={140} className="text-sncb-blue" />
+        </div>
+        
+        <div className="flex items-center gap-5 mb-12">
+           <div className="w-14 h-14 bg-sncb-blue rounded-2xl flex items-center justify-center text-white shadow-xl shadow-sncb-blue/20">
+             <Info size={28} />
            </div>
-           <h3 className="text-xs font-black text-sncb-blue uppercase tracking-[0.2em] italic">Identification Agent</h3>
+           <div>
+             <h3 className="text-lg font-black text-sncb-blue uppercase tracking-widest italic leading-none">Identité Personnel</h3>
+             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Données synchronisées Cloud SNCB</p>
+           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Prénom</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Prénom</label>
             <input 
               type="text" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all"
-              value={editFirstName}
-              onChange={e => setEditFirstName(e.target.value)}
-              placeholder="Ex: Jean"
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-sm font-bold focus:ring-8 focus:ring-sncb-blue/5 focus:border-sncb-blue transition-all outline-none" 
+              value={editFirstName} 
+              onChange={e => setEditFirstName(e.target.value)} 
+              placeholder="Ex: Marc"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nom</label>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nom</label>
             <input 
               type="text" 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all"
-              value={editLastName}
-              onChange={e => setEditLastName(e.target.value)}
-              placeholder="Ex: Dupont"
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-sm font-bold focus:ring-8 focus:ring-sncb-blue/5 focus:border-sncb-blue transition-all outline-none" 
+              value={editLastName} 
+              onChange={e => setEditLastName(e.target.value)} 
+              placeholder="Ex: Vandamme"
             />
           </div>
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Dépôt d'attache</label>
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dépôt Principal</label>
             <select 
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-semibold focus:outline-none focus:border-sncb-blue focus:ring-4 focus:ring-sncb-blue/5 transition-all appearance-none"
-              value={editDepot}
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-sm font-bold appearance-none outline-none focus:ring-8 focus:ring-sncb-blue/5 focus:border-sncb-blue transition-all" 
+              value={editDepot} 
               onChange={e => setEditDepot(e.target.value)}
             >
-              <option value="">-- Sélectionner votre dépôt --</option>
+              <option value="">Choisir mon dépôt...</option>
               {DEPOTS.map(d => <option key={d.code} value={d.code}>{d.name} ({d.code})</option>)}
             </select>
           </div>
         </div>
-        
-        <div className={`mt-8 flex items-center gap-4 p-5 rounded-2xl border transition-all ${rgpdAccepted ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'}`}>
-          <div className="relative flex items-center">
-            <input 
-              type="checkbox" 
-              id="rgpd" 
-              className="w-6 h-6 rounded-lg border-gray-300 text-sncb-blue focus:ring-sncb-blue cursor-pointer"
-              checked={rgpdAccepted}
-              onChange={e => setRgpdAccepted(e.target.checked)}
-            />
-          </div>
-          <label htmlFor="rgpd" className="text-[11px] font-bold text-slate-600 leading-snug cursor-pointer select-none">
-            J'autorise SwapACT à traiter mes données de service pour le matching. <br/>
-            <span className="text-[9px] text-slate-400 font-medium">Les données sont stockées de manière sécurisée sur le Cloud SNCB.</span>
-          </label>
-        </div>
 
         <button 
-          disabled={!isProfileComplete || isSaving}
-          onClick={handleActivateAccount}
-          className="w-full mt-8 py-5 bg-sncb-blue text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-sncb-blue-light transition-all disabled:opacity-40 shadow-xl shadow-sncb-blue/20 group"
+          onClick={() => completeOnboarding({ first_name: editFirstName, last_name: editLastName, depot: editDepot, rgpd_consent: true } as any)} 
+          disabled={!editFirstName || !editDepot || isSaving} 
+          className="w-full mt-12 py-6 bg-sncb-blue text-white rounded-[24px] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-sncb-blue/20 hover:scale-[1.01] transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-4 group"
         >
-          {isSaving ? <Loader2 className="animate-spin" size={18} /> : (isProfileComplete ? <CheckCircle size={18} /> : <Lock size={18} />)}
-          {user?.onboardingCompleted ? "Mettre à jour mon profil" : "Activer mon compte agent"}
+          {isSaving ? <Loader2 className="animate-spin" size={20} /> : "Valider mon profil agent"}
+          {!isSaving && <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />}
         </button>
       </section>
 
-      <section className="space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-1">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-1.5 h-1.5 bg-sncb-blue rounded-full"></div>
-              <h3 className="text-[10px] font-black text-sncb-blue uppercase tracking-widest italic">Gestion du Roster</h3>
-            </div>
-            <p className="text-[9px] font-bold text-gray-400 uppercase">Numérisez vos prestations (PDF ou Photo)</p>
+      {/* SCANNER DE ROSTER */}
+      <section className="space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 px-2">
+          <div className="space-y-2">
+            <h3 className="text-xl font-black text-sncb-blue uppercase tracking-widest italic">Roster Scanner</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <Sparkles size={12} className="text-sncb-blue" /> IA Vision & Proxy Cloud
+            </p>
           </div>
-          <button 
-            onClick={triggerFileInput}
-            disabled={isUploading || !user?.onboardingCompleted}
-            className={`px-8 py-4 bg-white border border-sncb-blue text-sncb-blue rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 hover:bg-blue-50 transition-all shadow-sm disabled:opacity-20`}
-          >
-            {isUploading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
-            Scanner Roster
-          </button>
+          {!isUploading && !previewDuties && (
+            <button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="px-10 py-5 bg-white border-2 border-sncb-blue text-sncb-blue rounded-[24px] font-black text-[11px] uppercase tracking-widest flex items-center gap-4 hover:bg-blue-50 transition-all shadow-xl active:scale-95"
+            >
+              <Scan size={24} /> Importer mon planning
+            </button>
+          )}
           <input 
             type="file" 
             ref={fileInputRef} 
             onChange={handleFileUpload} 
             className="hidden" 
-            accept="image/*,application/pdf"
+            accept="image/*,application/pdf" 
           />
         </div>
 
-        {dutiesLoading || isUploading ? (
-          <div className="py-24 flex flex-col items-center glass-card bg-white rounded-[32px] border-dashed border-2 border-gray-100">
-            <Loader2 className="animate-spin text-sncb-blue mb-6" size={48} />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">
-              {isUploading ? "Intelligence Artificielle en cours..." : "Synchronisation Roster..."}
-            </p>
+        {/* ÉCRAN DE CHARGEMENT LASER (ANIMATION SÉCURISÉE) */}
+        {isUploading && (
+          <div className="relative h-80 glass-card bg-white rounded-[48px] border-dashed border-2 border-sncb-blue/10 overflow-hidden flex flex-col items-center justify-center shadow-2xl animate-in fade-in duration-500">
+            {/* LASER ANIMATION */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-transparent via-sncb-blue to-transparent shadow-[0_0_30px_#003399] animate-laser-pass z-10"></div>
+            
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-sncb-blue/5 rounded-full blur-3xl animate-pulse"></div>
+              <FileSearch className="text-sncb-blue relative z-10" size={96} strokeWidth={1} />
+            </div>
+
+            <div className="text-center space-y-4 relative z-10 px-8">
+               <div className="flex items-center justify-center gap-3">
+                 <Loader2 className="animate-spin text-sncb-blue" size={20} />
+                 <p className="text-[12px] font-black text-sncb-blue uppercase tracking-[0.5em] italic">Analyse en cours...</p>
+               </div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed max-w-xs mx-auto">
+                 L'IA de SwapACT décode les tours de service de votre document.
+               </p>
+            </div>
           </div>
-        ) : duties.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        )}
+
+        {/* PRÉVISUALISATION ÉDITABLE DES SERVICES IA */}
+        {previewDuties && (
+          <div className="glass-card bg-white p-8 md:p-12 rounded-[48px] border-2 border-sncb-blue shadow-2xl animate-in zoom-in-95 duration-500">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
+              <div className="flex items-center gap-5">
+                <div className="p-4 bg-blue-50 text-sncb-blue rounded-2xl shadow-inner"><Table size={32} /></div>
+                <div>
+                   <h4 className="text-lg font-black text-sncb-blue uppercase tracking-widest italic leading-none">Contrôle de l'import</h4>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Supprimez les lignes erronées avant validation</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPreviewDuties(null)} 
+                className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+              >
+                <X size={32} />
+              </button>
+            </div>
+            
+            <div className="space-y-4 mb-12 max-h-[500px] overflow-y-auto pr-3 custom-scrollbar">
+              {previewDuties.map((d, i) => (
+                <div 
+                  key={i} 
+                  className="flex items-center justify-between p-6 bg-slate-50/50 rounded-[32px] border border-slate-100 hover:border-sncb-blue/20 transition-all group animate-in slide-in-from-right-4"
+                  style={{ animationDelay: `${i * 80}ms` }}
+                >
+                  <div className="flex items-center gap-8">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex flex-col items-center justify-center font-black text-sncb-blue text-sm shadow-sm italic group-hover:bg-sncb-blue group-hover:text-white transition-all">
+                      {d.code}
+                      <span className="text-[7px] uppercase mt-1 opacity-50 group-hover:opacity-100">Tour</span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-4">
+                        <p className="text-2xl font-black text-slate-800 tabular-nums tracking-tighter">{d.start_time} — {d.end_time}</p>
+                        <span className="px-4 py-1.5 bg-sncb-blue text-white text-[9px] font-black rounded-xl uppercase italic tracking-tighter shadow-md">
+                          {d.type || 'SNCB'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">
+                        {new Date(d.date).toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-6">
+                    <div className="hidden lg:flex gap-3">
+                      {d.destinations?.slice(0, 2).map((dest, idx) => (
+                        <span key={idx} className="text-[10px] font-black bg-white px-4 py-2 rounded-xl border border-slate-100 uppercase tracking-tight shadow-sm">{dest}</span>
+                      ))}
+                    </div>
+                    <button 
+                      onClick={() => removeFromPreview(i)} 
+                      className="p-4 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                      title="Ignorer ce service"
+                    >
+                      <Trash2 size={24} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <button 
+                 onClick={() => setPreviewDuties(null)} 
+                 className="py-6 bg-slate-100 text-slate-500 rounded-[24px] font-black text-[12px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+               >
+                 Abandonner l'import
+               </button>
+               <button 
+                 onClick={confirmImport} 
+                 className="py-6 bg-emerald-500 text-white rounded-[24px] font-black text-[12px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-4 hover:bg-emerald-600 transition-all active:scale-95 group"
+               >
+                 <Save size={24} /> Finaliser l'Importation
+               </button>
+            </div>
+          </div>
+        )}
+
+        {/* LISTE DES TOURS DE SERVICE ACTUELS */}
+        {!previewDuties && duties.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {duties.map(duty => (
-              <div key={duty.id} className="glass-card p-6 bg-white border border-gray-100 rounded-2xl flex items-center justify-between group hover:border-sncb-blue/30 transition-all shadow-sm">
+              <div 
+                key={duty.id} 
+                className="glass-card p-6 bg-white border border-slate-50 rounded-[32px] flex items-center justify-between group hover:shadow-2xl hover:border-sncb-blue/10 transition-all"
+              >
                 <div className="flex items-center gap-5">
-                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex flex-col items-center justify-center border border-gray-100 group-hover:bg-blue-50 transition-colors">
-                    <span className="text-sm font-black text-sncb-blue leading-none">{duty.code}</span>
-                    <span className="text-[7px] font-black text-gray-400 uppercase mt-1.5">TOUR</span>
+                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex flex-col items-center justify-center group-hover:bg-blue-50 transition-colors shadow-inner">
+                    <span className="text-xl font-black text-sncb-blue italic leading-none">{duty.code}</span>
+                    <span className="text-[9px] font-black text-slate-300 uppercase mt-2 tracking-widest">SNCB</span>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base font-black text-gray-800 tracking-tight">{duty.start_time} — {duty.end_time}</span>
-                      <span className="text-[8px] font-black px-2 py-0.5 bg-blue-100 text-sncb-blue rounded-lg uppercase">{duty.type}</span>
-                    </div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                      {new Date(duty.date).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', weekday: 'short' })}
+                    <p className="text-xl font-black text-slate-800 tracking-tight">
+                      {duty.start_time} <ArrowRight size={16} className="inline mx-2 text-slate-200" /> {duty.end_time}
+                    </p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                      {new Date(duty.date).toLocaleDateString('fr-BE', { weekday: 'short', day: 'numeric', month: 'short' })}
                     </p>
                   </div>
                 </div>
                 <button 
-                  onClick={() => removeDuty(duty.id)}
-                  className="p-3 text-gray-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                  onClick={() => removeDuty(duty.id)} 
+                  className="p-4 text-slate-200 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all opacity-0 group-hover:opacity-100 active:scale-90"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={22} />
                 </button>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="py-24 text-center glass-card bg-white border-2 border-dashed border-gray-100 rounded-[32px] flex flex-col items-center">
-             <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mb-6 text-gray-200">
-               <FileText size={40} />
-             </div>
-             <h4 className="text-xs font-black text-gray-300 uppercase tracking-[0.2em] italic">Aucune prestation chargée</h4>
+        )}
+
+        {/* ÉTAT VIDE */}
+        {!previewDuties && duties.length === 0 && !isUploading && (
+          <div className="py-32 text-center border-4 border-dashed border-slate-100 rounded-[48px] flex flex-col items-center bg-white/30">
+            <div className="w-24 h-24 bg-white rounded-[32px] flex items-center justify-center mb-8 text-slate-100 shadow-sm">
+              <FileText size={48} strokeWidth={1} />
+            </div>
+            <h4 className="text-sm font-black text-slate-300 uppercase tracking-[0.4em] mb-4 italic">Aucun service chargé</h4>
+            <p className="text-xs text-slate-400 font-bold uppercase max-w-xs mx-auto leading-relaxed px-6">
+              Votre bourse aux échanges est vide. Importez votre Roster pour commencer à switcher avec vos collègues.
+            </p>
           </div>
         )}
       </section>
 
-      {user?.onboardingCompleted && (
-        <div className="flex justify-center pt-10 border-t border-gray-100">
+      {duties.length > 0 && !previewDuties && (
+        <div className="flex justify-center pt-12">
           <button 
-            onClick={onNext}
-            className="px-14 py-6 bg-sncb-blue text-white rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-4"
+            onClick={onNext} 
+            className="px-20 py-7 bg-sncb-blue text-white rounded-[40px] font-black uppercase text-[14px] tracking-[0.2em] shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-6 group"
           >
-            Passer aux Préférences
-            <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
-              <CheckCircle size={14} />
-            </div>
+            Aller vers la Bourse <ArrowRight size={28} className="group-hover:translate-x-2 transition-transform" />
           </button>
         </div>
       )}

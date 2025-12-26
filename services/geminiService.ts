@@ -1,22 +1,17 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { UserPreference, Duty, SwapOffer } from "../types";
+import { Duty, UserPreference, SwapOffer } from "../types";
 
-const SYSTEM_PROMPT_ROSTER = `Tu es l'agent IA de numérisation Roster pour la SNCB.
-Ta mission est de lire un document de planning (PDF/Image) et de convertir chaque ligne de service en données structurées.
-
-IDENTIFICATION DES SERVICES :
-- Cherche les codes de tour (numéros de 3 à 6 chiffres).
-- Identifie PS (Prise de Service) et FS (Fin de Service).
-- Capture la date au format YYYY-MM-DD.
-- Liste TOUTES les gares mentionnées dans l'itinéraire (champ destinations).
-- Identifie le type de matériel ou service (IC, S, P, L, HKV, etc.).
-
+const SYSTEM_PROMPT_ROSTER = `Tu es l'agent IA expert de la SNCB. Ton rôle est d'analyser les documents de planification (Rosters).
 RÈGLES D'EXTRACTION :
-1. Chaque ligne du document doit être analysée.
-2. Si une ligne n'est pas un service (Repos 'R', Congé 'C', Maladie 'M'), IGNORE-LA.
-3. Le format de sortie doit être un JSON pur respectant strictement le schéma.
-4. Assure-toi que start_time et end_time sont au format HH:mm.`;
+1. Extrais uniquement les prestations de service réelles (tours).
+2. Ignore les repos (R, RU, RX), congés (C, CA), maladie (M), formations ou jours blancs.
+3. Pour la date, utilise le format YYYY-MM-DD. Si l'année n'est pas précisée, assume 2024.
+4. Formate les heures de PS (prise de service / start_time) et de FS (fin de service / end_time) au format 24h (HH:mm).
+5. Identifie le type de train (IC, L, S, P, HKV, Omnibus).
+6. Identifie le code du tour (généralement un nombre de 3 ou 4 chiffres).
+7. Liste les gares principales de l'itinéraire dans "destinations".
+FORMAT DE SORTIE : JSON strict uniquement.`;
 
 const ROSTER_SCHEMA = {
   type: Type.OBJECT,
@@ -26,12 +21,12 @@ const ROSTER_SCHEMA = {
       items: {
         type: Type.OBJECT,
         properties: {
-          code: { type: Type.STRING, description: "Numéro du tour/service" },
-          date: { type: Type.STRING, description: "Format YYYY-MM-DD" },
-          start_time: { type: Type.STRING, description: "Heure de prise (PS)" },
-          end_time: { type: Type.STRING, description: "Heure de fin (FS)" },
-          type: { type: Type.STRING, description: "Catégorie (IC/S/P/L)" },
-          destinations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Liste exhaustive des gares de l'itinéraire" }
+          code: { type: Type.STRING, description: "Numéro de tour (ex: 405)" },
+          date: { type: Type.STRING, description: "Date (YYYY-MM-DD)" },
+          start_time: { type: Type.STRING, description: "Heure de prise (HH:mm)" },
+          end_time: { type: Type.STRING, description: "Heure de fin (HH:mm)" },
+          type: { type: Type.STRING, description: "Type de train (IC, L, S, P)" },
+          destinations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Gares principales" }
         },
         required: ["code", "date", "start_time", "end_time"]
       }
@@ -39,18 +34,20 @@ const ROSTER_SCHEMA = {
   }
 };
 
-export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<Duty[]> {
-  // Toujours instancier juste avant l'appel pour avoir la clé à jour
+/**
+ * Analyse du document Roster côté serveur pour protéger la clé API.
+ */
+export async function parseRosterOnServer(base64Data: string, mimeType: string): Promise<Duty[]> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const base64Content = base64Data.split(',')[1] || base64Data;
+  const base64Content = base64Data.includes('base64,') ? base64Data.split(',')[1] : base64Data;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', 
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           { inlineData: { mimeType: mimeType, data: base64Content } },
-          { text: "Extrais toutes les prestations SNCB de ce document." }
+          { text: "Analyse ce roster SNCB et extrais les prestations de service." }
         ]
       },
       config: {
@@ -60,32 +57,33 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
       }
     });
 
-    if (!response.text) throw new Error("Document illisible par l'IA.");
+    if (!response.text) throw new Error("L'IA n'a pas renvoyé de données.");
     const data = JSON.parse(response.text);
     return (data.services || []) as Duty[];
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    if (error.message?.includes("Requested entity was not found")) {
-        if (window.aistudio) await window.aistudio.openSelectKey();
-    }
-    throw error;
+    console.error("[geminiService] Extraction Error:", error);
+    throw new Error(error.message || "Erreur de traitement IA");
   }
 }
 
-export async function matchSwaps(preferences: UserPreference[], offers: SwapOffer[]) {
-  // Matching simple basé sur les types préférés
+/**
+ * Calcul du matching intelligent pour la bourse aux échanges.
+ */
+export async function matchSwaps(preferences: UserPreference[], offers: SwapOffer[]): Promise<SwapOffer[]> {
+  if (offers.length === 0) return [];
+  
   return offers.map(offer => {
     const likes = preferences.filter(p => p.level === 'LIKE').map(p => p.value);
     const dislikes = preferences.filter(p => p.level === 'DISLIKE').map(p => p.value);
     
-    let score = 50;
-    if (likes.includes(offer.offeredDuty.type)) score += 30;
-    if (dislikes.includes(offer.offeredDuty.type)) score -= 30;
+    let score = 70; // Score de base
+    if (likes.includes(offer.offeredDuty.type)) score += 20;
+    if (dislikes.includes(offer.offeredDuty.type)) score -= 40;
     
     return {
       ...offer,
-      matchScore: Math.max(0, Math.min(100, score)),
-      matchReasons: ["Calculé via profil agent"]
+      matchScore: Math.max(5, Math.min(99, score)),
+      matchReasons: score > 75 ? ["Idéal pour votre profil", "Type de train favori"] : ["Offre standard"]
     };
   });
 }
