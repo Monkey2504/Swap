@@ -5,25 +5,51 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
 import { authService } from './lib/api/authService';
 import { useDuties } from './hooks/useDuties';
-import { LayoutDashboard, Settings, Repeat, BookOpen, LogOut, List, Loader2, Train, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Settings, Repeat, BookOpen, LogOut, List, Loader2, Train, Menu, X, ImageIcon, Key } from 'lucide-react';
 
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const PreferencesPage = lazy(() => import('./pages/PreferencesPage'));
 const SwapBoard = lazy(() => import('./pages/SwapBoard'));
 const StationDictionary = lazy(() => import('./pages/StationDictionary'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ImageEditorPage = lazy(() => import('./pages/ImageEditorPage'));
 
-type AppPage = 'dashboard' | 'profile' | 'preferences' | 'swaps' | 'dictionary';
+type AppPage = 'dashboard' | 'profile' | 'preferences' | 'swaps' | 'dictionary' | 'studio';
+
+// Déclaration pour TypeScript
+declare global {
+  /**
+   * Fix: Defining AIStudio interface separately and making it optional on Window 
+   * to satisfy "identical modifiers" and "same type" requirements from the environment.
+   */
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+  }
+}
 
 const App: React.FC = () => {
   const { user, logout, loadUserProfile, preferences } = useApp();
   const [currentPage, setCurrentPage] = useState<AppPage>('dashboard');
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(true);
   const { duties, refresh, isLoading: dutiesLoading } = useDuties(user?.id);
 
   const init = useCallback(async () => {
     try {
+      // Vérification de la clé API Gemini
+      if (window.aistudio) {
+        const selected = await window.aistudio.hasSelectedApiKey();
+        if (!selected && !process.env.API_KEY) {
+          setHasApiKey(false);
+        }
+      }
+
       const session = await authService.getSession();
       if (session?.user) {
         await loadUserProfile(session.user.id, session.user);
@@ -36,6 +62,13 @@ const App: React.FC = () => {
   }, [loadUserProfile]);
 
   useEffect(() => { init(); }, [init]);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true); // On assume le succès selon les règles de race condition
+    }
+  };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const closeSidebar = () => setIsSidebarOpen(false);
@@ -50,6 +83,32 @@ const App: React.FC = () => {
       <div className="h-screen w-full flex flex-col items-center justify-center bg-[#F3F4F6]">
         <div className="w-12 h-12 border-4 border-[#003399]/20 border-t-[#003399] rounded-full animate-spin mb-4"></div>
         <p className="text-[11px] font-bold uppercase tracking-widest text-[#003399]">Initialisation SwapACT...</p>
+      </div>
+    );
+  }
+
+  // Écran de configuration de la clé API si manquante
+  if (!hasApiKey) {
+    return (
+      <div className="h-screen w-full bg-sncb-blue flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-[32px] p-10 text-center space-y-6 shadow-2xl">
+          <div className="w-20 h-20 bg-blue-50 text-sncb-blue rounded-3xl flex items-center justify-center mx-auto">
+            <Key size={40} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-sncb-blue uppercase italic tracking-tighter">Configuration Requise</h2>
+            <p className="text-sm text-slate-500 font-medium">Pour utiliser les fonctions IA de SwapACT, vous devez sélectionner une clé API Gemini valide.</p>
+          </div>
+          <button 
+            onClick={handleSelectKey}
+            className="w-full py-5 bg-sncb-blue text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            Sélectionner ma Clé API
+          </button>
+          <p className="text-[9px] text-slate-400 font-bold uppercase italic">
+            Note : Utilisez un projet avec facturation activée (<a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">docs</a>).
+          </p>
+        </div>
       </div>
     );
   }
@@ -118,6 +177,7 @@ const App: React.FC = () => {
             <NavItem active={currentPage === 'dashboard'} onClick={() => navigateTo('dashboard')} icon={LayoutDashboard} label="Tableau de Bord" />
             <NavItem active={currentPage === 'profile'} onClick={() => navigateTo('profile')} icon={List} label="Mon Roster" />
             <NavItem active={currentPage === 'swaps'} onClick={() => navigateTo('swaps')} icon={Repeat} label="Bourse d'Échanges" />
+            <NavItem active={currentPage === 'studio'} onClick={() => navigateTo('studio')} icon={ImageIcon} label="Studio IA" />
             <NavItem active={currentPage === 'dictionary'} onClick={() => navigateTo('dictionary')} icon={BookOpen} label="Codes Gares" />
             <NavItem active={currentPage === 'preferences'} onClick={() => navigateTo('preferences')} icon={Settings} label="Mes Préférences" />
           </nav>
@@ -143,6 +203,7 @@ const App: React.FC = () => {
             {currentPage === 'profile' && <ProfilePage onNext={() => navigateTo('preferences')} duties={duties} dutiesLoading={dutiesLoading} />}
             {currentPage === 'preferences' && <PreferencesPage preferences={preferences} setPreferences={() => {}} onNext={() => navigateTo('swaps')} />}
             {currentPage === 'swaps' && <SwapBoard user={user} preferences={preferences} onRefreshDuties={async () => { refresh(); }} />}
+            {currentPage === 'studio' && <ImageEditorPage />}
             {currentPage === 'dictionary' && <StationDictionary />}
           </Suspense>
         </main>

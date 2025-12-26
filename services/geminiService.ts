@@ -40,6 +40,7 @@ const ROSTER_SCHEMA = {
 };
 
 export async function parseRosterDocument(base64Data: string, mimeType: string): Promise<Duty[]> {
+  // Toujours instancier juste avant l'appel pour avoir la clé à jour
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const base64Content = base64Data.split(',')[1] || base64Data;
 
@@ -62,8 +63,11 @@ export async function parseRosterDocument(base64Data: string, mimeType: string):
     if (!response.text) throw new Error("Document illisible par l'IA.");
     const data = JSON.parse(response.text);
     return (data.services || []) as Duty[];
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
+    if (error.message?.includes("Requested entity was not found")) {
+        if (window.aistudio) await window.aistudio.openSelectKey();
+    }
     throw error;
   }
 }
