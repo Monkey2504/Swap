@@ -75,7 +75,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
                     <div className="flex items-center gap-8">
                       <div className="w-20 h-20 md:w-24 md:h-24 bg-slate-50 border border-slate-100 rounded-[32px] flex flex-col items-center justify-center shadow-inner group-hover:bg-blue-50 transition-colors">
                         <span className="text-[10px] font-black text-slate-400 uppercase mb-1">Tour</span>
-                        <span className="text-3xl md:text-5xl font-black text-sncb-blue italic leading-none">{String(nextDuty.code)}</span>
+                        <span className="text-3xl md:text-5xl font-black text-sncb-blue italic leading-none">{String(nextDuty.code || '')}</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-3 text-sncb-blue">
@@ -91,11 +91,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
                     <div className="flex gap-4 w-full md:w-auto">
                       <div className="flex-1 md:w-36 p-6 bg-blue-50/50 rounded-3xl border border-blue-100 text-center">
                         <p className="text-[10px] font-black text-sncb-blue/40 uppercase mb-2">Prise (PS)</p>
-                        <p className="text-3xl font-black text-sncb-blue tabular-nums leading-none">{String(nextDuty.start_time)}</p>
+                        <p className="text-3xl font-black text-sncb-blue tabular-nums leading-none">{String(nextDuty.start_time || '')}</p>
                       </div>
                       <div className="flex-1 md:w-36 p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
                         <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Fin (FS)</p>
-                        <p className="text-3xl font-black text-slate-800 tabular-nums leading-none">{String(nextDuty.end_time)}</p>
+                        <p className="text-3xl font-black text-sncb-blue tabular-nums leading-none">{String(nextDuty.end_time || '')}</p>
                       </div>
                     </div>
                   </div>
@@ -107,7 +107,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
                     {Array.isArray(nextDuty.destinations) && nextDuty.destinations.map((dest, idx) => (
                       <React.Fragment key={idx}>
                         <div className="px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black text-slate-600 border border-slate-200">
-                          {String(dest)}
+                          {typeof dest === 'string' ? dest : 'Gare'}
                         </div>
                         {idx < nextDuty.destinations.length - 1 && <ArrowRight size={14} className="text-slate-300" />}
                       </React.Fragment>
@@ -145,10 +145,10 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
                     {n.type === 'swap_request' ? <Repeat size={18} /> : <CheckCircle2 size={18} />}
                   </div>
                   <div className="flex-grow">
-                    <p className="text-sm font-black text-slate-800 mb-1 leading-none">{String(n.title)}</p>
-                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{String(n.message)}</p>
+                    <p className="text-sm font-black text-slate-800 mb-1 leading-none">{String(n.title || '')}</p>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">{String(n.message || '')}</p>
                   </div>
-                  <span className="text-[9px] font-bold text-slate-300 uppercase shrink-0">{String(n.createdAt)}</span>
+                  <span className="text-[9px] font-bold text-slate-300 uppercase shrink-0">{String(n.createdAt || '')}</span>
                 </div>
               ))}
             </div>

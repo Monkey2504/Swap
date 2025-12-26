@@ -92,9 +92,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       timestamp: new Date().toISOString(),
       component: 'ErrorBoundary',
       error: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
+        name: error?.name || 'Error',
+        message: error?.message || 'Unknown error',
+        stack: error?.stack,
       },
       userAgent: navigator.userAgent,
       url: window.location.href,
@@ -105,8 +105,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       metadata,
     };
 
-    // Logging sans concaténation pour éviter [object Object]
-    console.error(`[ErrorBoundary] Incident: ${currentState.incidentId}`, logEntry);
+    // Logging séparé pour éviter [object Object] dans la console
+    console.group(`[ErrorBoundary] Incident: ${currentState.incidentId}`);
+    console.error("Détails de l'erreur:", error);
+    console.error("Contexte technique:", logEntry);
+    console.groupEnd();
 
     if (process.env.NODE_ENV === 'production') {
       this.sendToMonitoringService(logEntry).catch(() => {});
@@ -274,7 +277,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 <div className="bg-slate-50 p-4 rounded-xl text-left border border-slate-100">
                   <p className="text-xs font-semibold text-slate-500 mb-1">Détails :</p>
                   <p className="text-sm text-slate-700 font-mono break-all line-clamp-3">
-                    {String(error.message || 'Erreur inconnue')}
+                    {String(error?.message || 'Erreur inconnue')}
                   </p>
                 </div>
               )}

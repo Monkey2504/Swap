@@ -9,7 +9,7 @@ RÈGLES D'EXTRACTION :
 4. Formate les heures de PS (prise de service / start_time) et de FS (fin de service / end_time) au format 24h (HH:mm).
 5. Identifie le type de train (IC, L, S, P, HKV, Omnibus).
 6. Identifie le code du tour (généralement un nombre de 3 ou 4 chiffres).
-7. Liste les gares principales de l'itinéraire dans "destinations".
+7. Liste les gares principales de l'itinéraire dans "destinations" (liste de chaînes de caractères uniquement).
 FORMAT DE SORTIE : JSON strict uniquement.`;
 
 const ROSTER_SCHEMA = {
@@ -60,7 +60,17 @@ export async function parseRoster(base64Data: string, mimeType: string): Promise
     if (!text) throw new Error("L'IA n'a pas pu extraire de texte du document.");
     
     const data = JSON.parse(text);
-    return (data.services || []) as Duty[];
+    const services = (data.services || []) as any[];
+
+    // Sanétisation stricte pour éviter l'erreur React #31
+    return services.map(s => ({
+      ...s,
+      code: String(s.code || ''),
+      type: String(s.type || 'SNCB'),
+      destinations: Array.isArray(s.destinations) 
+        ? s.destinations.map((d: any) => typeof d === 'string' ? d : JSON.stringify(d)) 
+        : []
+    })) as Duty[];
   } catch (error: any) {
     console.error("[geminiService] Extraction Error:", error);
     throw new Error(error.message || "Erreur de traitement IA lors de la lecture du document.");

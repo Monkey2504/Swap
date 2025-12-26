@@ -21,16 +21,17 @@ export const formatError = (err: any): string => {
   // Gestion des objets d'erreur complexes (Supabase, Gemini, etc.)
   if (typeof err === 'object') {
     // Vérifier si c'est un élément React par accident ($$typeof)
+    // Rend l'erreur sécurisée pour l'affichage
     if (err.$$typeof) {
-      return "Erreur d'affichage (objet React détecté).";
+      return "Erreur d'affichage (composant React détecté au lieu d'un message).";
     }
 
     try {
       // Priorité aux messages explicites
-      if (err.message && typeof err.message === 'string') return err.message;
-      if (err.error && typeof err.error === 'string') return err.error;
-      if (err.error_description && typeof err.error_description === 'string') return err.error_description;
-      if (err.details && typeof err.details === 'string') return err.details;
+      if (typeof err.message === 'string') return err.message;
+      if (typeof err.error === 'string') return err.error;
+      if (typeof err.error_description === 'string') return err.error_description;
+      if (typeof err.details === 'string') return err.details;
       
       // Si c'est une erreur de fetch/réseau
       if (err.name === 'TypeError' && (err.message === 'Failed to fetch' || err.message?.includes('network'))) {
@@ -39,7 +40,7 @@ export const formatError = (err: any): string => {
       
       // En dernier recours, stringify mais vérifier que ce n'est pas un objet vide
       const str = JSON.stringify(err);
-      return str !== '{}' ? str : "Erreur technique non spécifiée.";
+      return (str && str !== '{}') ? str : "Erreur technique non spécifiée.";
     } catch (e) {
       return "Erreur de traitement des données (format non reconnu).";
     }
