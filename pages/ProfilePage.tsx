@@ -45,11 +45,11 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       try {
         const base64 = reader.result as string;
         
-        // DÉTERMINATION DE L'URL ABSOLUE (Évite les 404 de routage relatif)
-        const baseUrl = window.location.origin;
+        // DÉTERMINATION DE L'URL ABSOLUE (Étape 12 : Fix routing 404)
+        const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin).replace(/\/$/, "");
         const API_URL = `${baseUrl}/api/parse-roster`;
 
-        console.log(`[ProfilePage] Envoi du Roster vers: ${API_URL}`);
+        console.log(`[ProfilePage] Appel Roster via: ${API_URL}`);
 
         const response = await fetch(API_URL, {
           method: 'POST',
@@ -60,7 +60,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           })
         });
 
-        // *** BLOC DE VÉRIFICATION ROBUSTE ***
+        // *** VÉRIFICATION DE LA RÉPONSE HTTP (Étape 11) ***
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`[ProfilePage] Erreur HTTP ${response.status}. Corps:`, errorText);
@@ -70,7 +70,7 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
             const errorJson = JSON.parse(errorText);
             errorMessage = errorJson.error || errorJson.details || errorMessage;
           } catch (e) {
-            // Pas de JSON dans l'erreur, on garde le message brut
+            // Pas de JSON, on garde le message générique avec le statut
           }
           throw new Error(errorMessage);
         }
@@ -78,13 +78,13 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
         const result = await response.json();
         
         if (!result.services || result.services.length === 0) {
-          throw new Error("Aucun service n'a pu être extrait. Vérifiez que le document est un Roster SNCB valide.");
+          throw new Error("Aucun service n'a pu être extrait. Vérifiez que le document est un Roster SNCB lisible.");
         }
         
         setPreviewDuties(result.services);
         setSuccessMessage(`${result.services.length} prestations identifiées par l'IA.`);
       } catch (err: any) {
-        console.error("[ProfilePage] Capture d'erreur:", err);
+        console.error("[ProfilePage] Capture d'erreur fatale:", err);
         setError(formatError(err));
       } finally {
         setIsUploading(false);
