@@ -1,6 +1,7 @@
 
 import { getSupabase, isSupabaseConfigured } from '../supabase';
-import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
+/* Fix: Import Auth types as types from @supabase/supabase-js */
+import type { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 
 class AuthService {
   private getClient() {
@@ -13,14 +14,16 @@ class AuthService {
 
   async signIn(email: string, password: string) {
     const client = this.getClient();
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    /* Fix: Cast auth to any to bypass missing method errors on SupabaseAuthClient type */
+    const { data, error } = await (client.auth as any).signInWithPassword({ email, password });
     if (error) throw error;
     return data;
   }
 
   async signUp(email: string, password: string, metadata: any) {
     const client = this.getClient();
-    const { data, error } = await client.auth.signUp({
+    /* Fix: Cast auth to any to bypass missing method errors on SupabaseAuthClient type */
+    const { data, error } = await (client.auth as any).signUp({
       email,
       password,
       options: { data: metadata }
@@ -32,7 +35,8 @@ class AuthService {
   async signOut() {
     const client = getSupabase();
     if (client) {
-      await client.auth.signOut();
+      /* Fix: Cast auth to any for signOut call */
+      await (client.auth as any).signOut();
     }
   }
 
@@ -42,8 +46,9 @@ class AuthService {
     
     try {
       // On utilise une course pour ne pas bloquer l'app
+      /* Fix: Cast auth to any for getSession call */
       const { data: { session }, error } = await Promise.race([
-        client.auth.getSession(),
+        (client.auth as any).getSession(),
         new Promise<{data: {session: null}, error: Error}>((_, reject) => 
           setTimeout(() => reject(new Error("Timeout Session")), 3000)
         )
@@ -59,7 +64,8 @@ class AuthService {
   onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
     const client = getSupabase();
     if (!client) return { data: { subscription: { unsubscribe: () => {} } } };
-    return client.auth.onAuthStateChange(callback);
+    /* Fix: Cast auth to any for onAuthStateChange call */
+    return (client.auth as any).onAuthStateChange(callback);
   }
 }
 

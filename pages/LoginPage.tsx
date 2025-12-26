@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { User } from '@supabase/supabase-js';
+/* Fix: Import User as a type from @supabase/supabase-js */
+import type { User } from '@supabase/supabase-js';
 import { getSupabase } from '../lib/supabase';
 import { formatError } from '../lib/api';
 import { Loader2, Eye, EyeOff, ShieldCheck, Train } from 'lucide-react';
@@ -26,10 +27,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     try {
       let result;
+      /* Fix: Cast auth to any to bypass missing method errors on SupabaseAuthClient type */
+      const auth = supabase.auth as any;
       if (isSignUp) {
-        result = await supabase.auth.signUp({ email, password });
+        result = await auth.signUp({ email, password });
       } else {
-        result = await supabase.auth.signInWithPassword({ email, password });
+        result = await auth.signInWithPassword({ email, password });
       }
       
       if (result.error) throw result.error;

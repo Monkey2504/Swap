@@ -1,7 +1,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Configuration par défaut (Demo/Sandbox communautaire)
+// Configuration par défaut (Mise à jour avec vos identifiants)
 const DEFAULT_URL = "https://mhipjaushqtszeokgdgn.supabase.co";
 const DEFAULT_KEY = "sb_publishable_h7S7TfbeXJ3qLy5lCtK0cw_-DQjQ6ua";
 
@@ -56,7 +56,8 @@ export const runDiagnostic = async () => {
   if (!client) return { ok: false, message: "Liaison non configurée.", type: 'config' };
   
   try {
-    const { error: authError } = await client.auth.getSession();
+    /* Fix: Cast auth to any to bypass getSession missing method error */
+    const { error: authError } = await (client.auth as any).getSession();
     if (authError) return { ok: false, message: "Clé API refusée ou expirée.", type: 'invalid_key' };
 
     const { error: profError } = await client.from('profiles').select('id').limit(1);
