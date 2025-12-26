@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useDuties } from '../hooks/useDuties';
@@ -45,11 +44,9 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
       try {
         const base64 = reader.result as string;
         
-        // DÉTERMINATION DE L'URL ABSOLUE (Étape 12 : Fix routing 404)
+        // DÉTERMINATION DE L'URL ABSOLUE (Étape 11 & 12)
         const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin).replace(/\/$/, "");
         const API_URL = `${baseUrl}/api/parse-roster`;
-
-        console.log(`[ProfilePage] Appel Roster via: ${API_URL}`);
 
         const response = await fetch(API_URL, {
           method: 'POST',
@@ -60,31 +57,34 @@ const ProfilePage: React.FC<{ onNext: () => void; duties: Duty[]; dutiesLoading:
           })
         });
 
-        // *** VÉRIFICATION DE LA RÉPONSE HTTP (Étape 11) ***
+        // *** NOUVEAU BLOC DE VÉRIFICATION (Diagnostic 404/307) ***
         if (!response.ok) {
+          // Tentez de lire le corps en tant que texte pour voir le message d'erreur HTML/brut
           const errorText = await response.text();
-          console.error(`[ProfilePage] Erreur HTTP ${response.status}. Corps:`, errorText);
+          // Affichez ce texte brut pour diagnostiquer pourquoi l'API n'a pas renvoyé de JSON
+          console.error("Erreur HTTP reçue. Corps de la réponse (non-JSON) :", errorText);
           
           let errorMessage = `Erreur du serveur (Statut ${response.status}).`;
           try {
             const errorJson = JSON.parse(errorText);
             errorMessage = errorJson.error || errorJson.details || errorMessage;
           } catch (e) {
-            // Pas de JSON, on garde le message générique avec le statut
+            // Pas de JSON, on reste sur le message brut pour le debug
           }
           throw new Error(errorMessage);
         }
 
+        // Maintenant, on peut tenter de parser en JSON en toute sécurité
         const result = await response.json();
         
         if (!result.services || result.services.length === 0) {
-          throw new Error("Aucun service n'a pu être extrait. Vérifiez que le document est un Roster SNCB lisible.");
+          throw new Error("Aucun service n'a pu être extrait. Vérifiez que le document est un Roster SNCB valide.");
         }
         
         setPreviewDuties(result.services);
         setSuccessMessage(`${result.services.length} prestations identifiées par l'IA.`);
       } catch (err: any) {
-        console.error("[ProfilePage] Capture d'erreur fatale:", err);
+        console.error("[ProfilePage] Capture d'erreur:", err);
         setError(formatError(err));
       } finally {
         setIsUploading(false);
