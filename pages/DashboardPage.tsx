@@ -8,7 +8,6 @@ interface DashboardPageProps {
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => {
-  // Sécurisation forcée : si duties n'est pas un tableau, on utilise un tableau vide
   const safeDuties = Array.isArray(duties) ? duties : [];
 
   const notifications: AppNotification[] = [
@@ -18,9 +17,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
 
   const sortedDuties = useMemo(() => {
     return [...safeDuties].sort((a, b) => {
-      const dateA = new Date(`${a.date}T${a.start_time}`).getTime();
-      const dateB = new Date(`${b.date}T${b.start_time}`).getTime();
-      return dateA - dateB;
+      try {
+        const dateA = new Date(`${a.date}T${a.start_time}`).getTime();
+        const dateB = new Date(`${b.date}T${b.start_time}`).getTime();
+        return dateA - dateB;
+      } catch (e) {
+        return 0;
+      }
     });
   }, [safeDuties]);
 
@@ -32,21 +35,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
     }
   });
 
-  /**
-   * UTILITAIRE ANTI-CRASH : 
-   * Garantit qu'on ne rend jamais un objet dans le JSX.
-   */
   const renderText = (val: any): string => {
     if (val === null || val === undefined) return "";
     if (typeof val === 'string' || typeof val === 'number') return String(val);
-    return "[Donnée non textuelle]";
+    return ""; // Ne JAMAIS retourner l'objet
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-slide-up pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 animate-slide-up pb-20 px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="space-y-1">
-          <h1 className="text-3xl font-black text-sncb-blue uppercase tracking-tight italic">
+          <h1 className="text-3xl font-black text-sncb-blue uppercase tracking-tight italic leading-none">
             Tableau <span className="text-slate-400">Agent</span>
           </h1>
           <div className="flex items-center gap-2">
@@ -125,10 +124,46 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ duties, onNavigate }) => 
               ) : (
                 <div className="py-24 text-center border-4 border-dashed border-slate-50 rounded-[40px] flex flex-col items-center">
                   <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.3em] mb-6 italic">Aucune prestation</h4>
-                  <button onClick={() => onNavigate('profile')} className="px-8 py-4 bg-sncb-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">Importer Roster</button>
+                  <button onClick={() => onNavigate('profile')} className="px-8 py-4 bg-sncb-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">Importer mon Roster</button>
                 </div>
               )}
             </div>
+          </div>
+          
+          <div className="glass-card bg-white p-8 rounded-[32px] border-slate-100">
+            <h3 className="text-[10px] font-black text-sncb-blue uppercase tracking-[0.2em] italic mb-6">Dernières Activités</h3>
+            <div className="space-y-4">
+              {notifications.map(n => (
+                <div key={n.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl transition-colors cursor-pointer border border-transparent hover:border-slate-100">
+                  <div className="w-10 h-10 bg-blue-50 text-sncb-blue rounded-xl flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <div className="flex-grow">
+                    <p className="text-xs font-black text-slate-800 leading-none mb-1">{renderText(n.title)}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">{renderText(n.message)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="glass-card p-8 bg-sncb-blue text-white shadow-2xl rounded-[32px] relative overflow-hidden group">
+             <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/5 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
+             <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8">
+               <Repeat size={28} className="text-white" />
+             </div>
+             <h4 className="text-2xl font-black uppercase italic tracking-tighter mb-3 leading-none">Bourse Active</h4>
+             <p className="text-[11px] text-white/70 font-bold uppercase tracking-widest leading-relaxed mb-10">
+               Consultez les offres <br/> de vos collègues.
+             </p>
+             <button 
+                onClick={() => onNavigate('swaps')}
+                className="w-full py-5 bg-white text-sncb-blue rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-blue-50 transition-all shadow-xl active:scale-95"
+             >
+               Voir les échanges
+             </button>
           </div>
         </div>
       </div>
